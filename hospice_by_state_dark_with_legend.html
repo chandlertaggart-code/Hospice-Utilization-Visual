@@ -1,0 +1,202 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; background: #0f1923; color: #ccdde8; }
+  #wrap { display: flex; flex-direction: column; height: 100vh; min-height: 480px; }
+  #header { padding: 10px 18px 8px; background: #0f1923; border-bottom: 1px solid #1e3448; flex-shrink: 0; }
+  #header h1 { font-size: 13px; font-weight: 700; color: #a8cfe0; letter-spacing: 0.4px; }
+  #header p { font-size: 9.5px; color: #4a7090; margin-top: 2px; }
+  #body { display: flex; flex: 1; overflow: hidden; }
+  #map-wrap { flex: 1; position: relative; min-width: 0; }
+  svg { width: 100%; height: 100%; }
+  .bg-state { stroke: #0f1923; stroke-width: 0.8; cursor: pointer; transition: opacity 0.15s, filter 0.15s; }
+  .bg-state:hover { opacity: 0.78; filter: brightness(1.3); }
+  .state-abbr { font-size: 6.5px; font-weight: 700; text-anchor: middle; dominant-baseline: central; fill: rgba(255,255,255,0.85); pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,0.4); stroke-width: 2px; }
+  .focus-state-ring { fill: none; stroke: rgba(245,200,50,0.75); stroke-width: 2; pointer-events: none; }
+  #footer { padding: 7px 18px 9px; background: #0f1923; border-top: 1px solid #1e3448; flex-shrink: 0; }
+  #legend-row { display: flex; align-items: center; gap: 3px; margin-bottom: 4px; }
+  .leg-sq { height: 11px; flex: 1; border-radius: 1px; }
+  #legend-labels { display: flex; justify-content: space-between; font-size: 9px; color: #4a7090; }
+  #footer-note { font-size: 9px; color: #3a5570; margin-top: 5px; }
+  #tooltip { position: fixed; background: #0d1720; border: 1px solid #2a5570; border-radius: 7px; padding: 8px 12px; pointer-events: none; display: none; z-index: 999; font-size: 11px; font-family: Georgia, serif; box-shadow: 0 4px 18px rgba(0,0,0,0.5); white-space: nowrap; }
+  #tooltip strong { color: #5ad090; display: block; margin-bottom: 3px; font-size: 12px; }
+
+  /* ── Sidebar ── */
+  #sidebar { width: 200px; flex-shrink: 0; background: #0d1720; border-left: 1px solid #1e3448; display: flex; flex-direction: column; padding: 12px 10px 10px; overflow-y: auto; }
+  #sidebar h2 { font-size: 9.5px; font-weight: 700; color: #c8a832; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+  #sidebar h2::before { content: ''; display: inline-block; width: 14px; height: 3px; background: #c8a832; border-radius: 2px; flex-shrink: 0; }
+  #sidebar .sub { font-size: 8px; color: #4a7090; margin-bottom: 10px; }
+  .focus-row { display: flex; align-items: center; gap: 7px; padding: 5px 4px; border-bottom: 1px solid #1a2e40; }
+  .focus-row:last-child { border-bottom: none; }
+  .focus-rank { font-size: 9px; color: #4a7090; min-width: 12px; text-align: right; flex-shrink: 0; }
+  .focus-swatch { width: 26px; height: 17px; border-radius: 3px; flex-shrink: 0; border: 1.5px solid rgba(245,200,50,0.6); }
+  .focus-abbr { font-size: 11px; font-weight: 700; color: #c8a832; min-width: 24px; flex-shrink: 0; }
+  .focus-pct { font-size: 10px; color: #b8d4e0; font-weight: 600; margin-left: auto; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="header">
+    <h1>Hospice Care Utilization by State</h1>
+    <p>% of Medicare decedents in hospice at time of death &nbsp;·&nbsp; NHPCO 2022 &nbsp;·&nbsp; Gold outline = focus states &nbsp;·&nbsp; Hover any state for detail</p>
+  </div>
+  <div id="body">
+    <div id="map-wrap">
+      <div id="tooltip"><strong id="tt-state"></strong><span id="tt-val"></span></div>
+      <svg id="map" viewBox="0 0 960 580" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div id="sidebar">
+      <h2>Focus states — ranked</h2>
+      <div class="sub">Lowest → highest utilization</div>
+      <div id="focus-legend"></div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <div id="legend-row"></div>
+    <div id="legend-labels">
+      <span>Lower utilization (~26%)</span>
+      <span>Moderate (~46%)</span>
+      <span>Higher utilization (~60%)</span>
+    </div>
+    <div id="footer-note">Source: National Hospice and Palliative Care Organization (NHPCO) Facts and Figures Report Series, 2022</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+const hospiceData = {
+  "Alabama":53.2,"Alaska":37.1,"Arizona":54.8,"Arkansas":50.1,"California":48.3,
+  "Colorado":49.0,"Connecticut":43.2,"Delaware":44.8,"Florida":55.9,"Georgia":49.7,
+  "Hawaii":35.4,"Idaho":51.8,"Illinois":47.8,"Indiana":52.4,"Iowa":52.1,
+  "Kansas":51.8,"Kentucky":48.9,"Louisiana":50.3,"Maine":41.2,"Maryland":43.6,
+  "Massachusetts":38.7,"Michigan":49.7,"Minnesota":48.5,"Mississippi":54.1,
+  "Missouri":52.8,"Montana":55.2,"Nebraska":48.4,"Nevada":57.3,"New Hampshire":40.1,
+  "New Jersey":42.5,"New Mexico":45.1,"New York":38.2,"North Carolina":50.8,
+  "North Dakota":36.2,"Ohio":49.1,"Oklahoma":53.5,"Oregon":53.9,"Pennsylvania":46.3,
+  "Rhode Island":40.8,"South Carolina":52.0,"South Dakota":42.9,"Tennessee":52.6,
+  "Texas":51.2,"Utah":51.8,"Vermont":39.5,"Virginia":49.4,"Washington":52.7,
+  "West Virginia":47.6,"Wisconsin":48.1,"Wyoming":37.7,"District of Columbia":31.2
+};
+
+const focusStates = [
+  { name:"North Dakota", abbr:"ND", pct:36.2 },
+  { name:"Wyoming",      abbr:"WY", pct:37.7 },
+  { name:"South Dakota", abbr:"SD", pct:42.9 },
+  { name:"New Mexico",   abbr:"NM", pct:45.1 },
+  { name:"Nebraska",     abbr:"NE", pct:48.4 },
+  { name:"Colorado",     abbr:"CO", pct:49.0 },
+  { name:"Michigan",     abbr:"MI", pct:49.7 },
+  { name:"Idaho",        abbr:"ID", pct:51.8 },
+  { name:"Kansas",       abbr:"KS", pct:51.8 },
+];
+const focusSet = new Set(focusStates.map(f=>f.name));
+
+const stateAbbrs = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY","District of Columbia":"DC"};
+const smallStates = new Set(["CT","RI","DE","NH","VT","MA","NJ","MD","DC"]);
+
+const vals = Object.values(hospiceData);
+const minV = Math.min(...vals), maxV = Math.max(...vals);
+
+function hospiceColor(v) {
+  if (v == null) return '#1e3448';
+  const t = (v - minV)/(maxV - minV);
+  const stops = [
+    [0.0,  [20,  50,  90 ]],
+    [0.25, [25,  80,  140]],
+    [0.5,  [30,  120, 180]],
+    [0.75, [45,  160, 210]],
+    [1.0,  [80,  210, 240]],
+  ];
+  let i=0; while (i<stops.length-1 && t>stops[i+1][0]) i++;
+  const [t0,c0]=stops[i],[t1,c1]=stops[Math.min(i+1,4)];
+  const f=t1>t0?(t-t0)/(t1-t0):0;
+  return `rgb(${Math.round(c0[0]+f*(c1[0]-c0[0]))},${Math.round(c0[1]+f*(c1[1]-c0[1]))},${Math.round(c0[2]+f*(c1[2]-c0[2]))})`;
+}
+
+// Build sidebar legend
+const fl = document.getElementById('focus-legend');
+focusStates.forEach((f,i) => {
+  const row = document.createElement('div');
+  row.className = 'focus-row';
+  row.innerHTML = `
+    <span class="focus-rank">${i+1}</span>
+    <span class="focus-swatch" style="background:${hospiceColor(f.pct)}"></span>
+    <span class="focus-abbr">${f.abbr}</span>
+    <span class="focus-pct">${f.pct}%</span>`;
+  fl.appendChild(row);
+});
+
+// Footer gradient legend
+const lr = document.getElementById('legend-row');
+for (let i=0; i<30; i++) {
+  const v = minV + (i/29)*(maxV-minV);
+  const sq = document.createElement('div'); sq.className='leg-sq';
+  sq.style.background = hospiceColor(v); lr.appendChild(sq);
+}
+
+const tip = document.getElementById('tooltip');
+
+d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(us => {
+  const proj = d3.geoAlbersUsa().scale(1060).translate([480,290]);
+  const path = d3.geoPath().projection(proj);
+  const svg = d3.select('#map');
+  const feats = topojson.feature(us, us.objects.states).features;
+
+  svg.append('g').selectAll('path')
+    .data(feats)
+    .join('path')
+    .attr('class','bg-state')
+    .attr('d',path)
+    .attr('fill', d => hospiceColor(hospiceData[d.properties.name]))
+    .on('mousemove', function(event,d) {
+      const v = hospiceData[d.properties.name];
+      const isFocus = focusSet.has(d.properties.name);
+      tip.style.display='block';
+      tip.style.left=Math.min(event.clientX+14,window.innerWidth-210)+'px';
+      tip.style.top=Math.max(event.clientY-52,8)+'px';
+      document.getElementById('tt-state').textContent = d.properties.name + (isFocus?' ★':'');
+      document.getElementById('tt-state').style.color = isFocus ? '#c8a832' : '#5ad090';
+      document.getElementById('tt-val').textContent = v!=null ? v.toFixed(1)+'% in hospice at time of death' : 'No data';
+      document.getElementById('tt-val').style.color = '#b8d4e0';
+    })
+    .on('mouseleave',()=>{ tip.style.display='none'; });
+
+  // State labels
+  const lblGroup = svg.append('g');
+  lblGroup.selectAll('text')
+    .data(feats)
+    .join('text')
+    .attr('class','state-abbr')
+    .attr('x',d=>path.centroid(d)[0])
+    .attr('y',d=>path.centroid(d)[1])
+    .text(d=>stateAbbrs[d.properties.name]||'');
+
+  const smallOffsets={"CT":[24,-8],"RI":[30,6],"DE":[28,6],"NH":[18,-13],"VT":[-10,-10],"MA":[22,-13],"NJ":[20,2],"MD":[22,9],"DC":[24,11]};
+  lblGroup.selectAll('text')
+    .filter(d=>smallStates.has(stateAbbrs[d.properties.name]||''))
+    .each(function(d){
+      const abbr=stateAbbrs[d.properties.name];
+      const off=smallOffsets[abbr]||[20,0];
+      const c=path.centroid(d);
+      d3.select(this).attr('x',c[0]+off[0]).attr('y',c[1]+off[1]);
+      lblGroup.append('line')
+        .attr('x1',c[0]).attr('y1',c[1]).attr('x2',c[0]+off[0]-4).attr('y2',c[1]+off[1])
+        .attr('stroke','rgba(255,255,255,0.3)').attr('stroke-width',0.5);
+    });
+
+  // Focus state gold outlines
+  svg.append('g').selectAll('path')
+    .data(feats.filter(f=>focusSet.has(f.properties.name)))
+    .join('path')
+    .attr('class','focus-state-ring')
+    .attr('d',path);
+});
+</script>
+</body>
+</html>

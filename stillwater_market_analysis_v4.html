@@ -1,0 +1,364 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; background: #0f1923; color: #ccdde8; }
+  #wrap { display: flex; flex-direction: column; height: 100vh; min-height: 560px; }
+  #header { padding: 10px 18px 8px; background: #0f1923; border-bottom: 1px solid #1e3448; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  #header h1 { font-size: 13px; font-weight: 700; color: #a8cfe0; letter-spacing: 0.4px; }
+  #header p { font-size: 9.5px; color: #4a7090; margin-top: 2px; }
+  #body { display: flex; flex: 1; overflow: hidden; }
+  #map-wrap { flex: 1; position: relative; min-width: 0; overflow: hidden; }
+  svg { width: 100%; height: 100%; }
+  .bg-state { fill: #1a2e40; stroke: #0f1923; stroke-width: 0.8; }
+  .region-path { stroke: #0f1923; stroke-width: 0.7; cursor: pointer; transition: opacity 0.2s, filter 0.2s; }
+  .region-path.dimmed { opacity: 0.1; filter: grayscale(1) brightness(0.3); }
+  .region-path.highlighted { opacity: 1; filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,255,255,0.18)); }
+  .focus-outline { fill: none; stroke: #3a6a88; stroke-width: 1.2; pointer-events: none; }
+  .state-label { font-size: 6.5px; fill: rgba(100,150,180,0.45); text-anchor: middle; dominant-baseline: central; pointer-events: none; font-weight: 700; letter-spacing: 0.4px; }
+  .rnum-bg { pointer-events: none; }
+  .rnum-txt { pointer-events: none; font-family: Georgia, serif; font-weight: 700; font-size: 7.5px; fill: rgba(255,255,255,0.95); text-anchor: middle; dominant-baseline: central; }
+  #sidebar { width: 202px; flex-shrink: 0; background: #0d1720; border-left: 1px solid #1e3448; overflow-y: auto; display: flex; flex-direction: column; }
+  #sidebar-top { padding: 8px 10px 6px; border-bottom: 1px solid #1e3448; background: #101d2b; flex-shrink: 0; }
+  #sidebar-top h2 { font-size: 9px; font-weight: 700; color: #88b8cc; text-transform: uppercase; letter-spacing: 0.8px; }
+  #sidebar-top p { font-size: 8px; color: #4a7090; margin-top: 2px; }
+  #legend-list { flex: 1; overflow-y: auto; }
+  .legend-row { display: flex; align-items: center; gap: 5px; padding: 4px 7px; cursor: pointer; border-bottom: 1px solid #1a2e40; transition: background 0.1s; }
+  .legend-row:hover, .legend-row.active { background: #162a1a; }
+  .leg-num { font-size: 9px; color: #4a7090; min-width: 14px; text-align: right; flex-shrink: 0; }
+  .leg-swatch { width: 20px; height: 13px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.08); }
+  .leg-info { flex: 1; min-width: 0; }
+  .leg-name { font-size: 9px; color: #b8d4e0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .leg-detail { font-size: 7.5px; color: #4a8a5a; }
+  #scale-wrap { padding: 7px 10px; border-top: 1px solid #1e3448; background: #101d2b; flex-shrink: 0; }
+  #scale-wrap p { font-size: 7.5px; color: #4a7090; margin-bottom: 4px; }
+  #scale-row { display: flex; height: 10px; border-radius: 2px; overflow: hidden; }
+  .sc-seg { flex: 1; }
+  #scale-labels { display: flex; justify-content: space-between; margin-top: 3px; }
+  #tooltip { position: fixed; background: #0d1720; border: 1px solid #2a6040; border-radius: 8px; padding: 10px 13px; pointer-events: none; display: none; z-index: 999; max-width: 245px; box-shadow: 0 4px 22px rgba(0,0,0,0.6); font-family: Georgia, serif; }
+  #tooltip h3 { font-size: 11.5px; color: #5ad090; margin-bottom: 6px; font-weight: 700; border-bottom: 1px solid #1e3a28; padding-bottom: 4px; }
+  .tt-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .tt-lbl { color: #4a7090; font-size: 9.5px; }
+  .tt-val { color: #b8d4e0; font-weight: 700; font-size: 9.5px; }
+  .tt-ratio-val { font-weight: 700; font-size: 10.5px; }
+  .tt-towns { font-size: 8.5px; color: #5a8a6a; margin-top: 5px; padding-top: 4px; border-top: 1px solid #1e3a28; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="header">
+    <div>
+      <h1>Stillwater Hospice — Market Analysis &nbsp;·&nbsp; 9 States · 23 Regions</h1>
+      <p>2024 Census &amp; CMS provider data &nbsp;·&nbsp; Color = 65+ population ÷ licensed hospice providers &nbsp;·&nbsp; Green = high ratio (underserved) · Yellow = moderate · Red = lower ratio &nbsp;·&nbsp; Hover for detail</p>
+    </div>
+  </div>
+  <div id="body">
+    <div id="map-wrap">
+      <div id="tooltip">
+        <h3 id="tt-name"></h3>
+        <div class="tt-row"><span class="tt-lbl">State</span><span class="tt-val" id="tt-state"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Region #</span><span class="tt-val" id="tt-num"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Total Pop (2024)</span><span class="tt-val" id="tt-pop"></span></div>
+        <div class="tt-row"><span class="tt-lbl">65+ Population</span><span class="tt-val" id="tt-elder"></span></div>
+        <div class="tt-row"><span class="tt-lbl">65+ Rate</span><span class="tt-val" id="tt-pct"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Est. Hospice Providers</span><span class="tt-val" id="tt-hosp"></span></div>
+        <div class="tt-row"><span class="tt-lbl">65+ per Provider</span><span class="tt-ratio-val" id="tt-ratio"></span></div>
+        <div class="tt-towns" id="tt-towns"></div>
+      </div>
+      <svg id="map" viewBox="0 0 960 580" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div id="sidebar">
+      <div id="sidebar-top">
+        <h2>Ranked by 65+:Hospice Ratio</h2>
+        <p>Most underserved (highest ratio) first ↓</p>
+      </div>
+      <div id="legend-list"></div>
+      <div id="scale-wrap">
+        <p>65+ residents per hospice provider</p>
+        <div id="scale-row"></div>
+        <div id="scale-labels">
+          <span style="font-size:7px;color:#d44020;">Low</span>
+          <span style="font-size:7px;color:#c8a820;">Moderate</span>
+          <span style="font-size:7px;color:#28a048;">High</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+// ─── METHODOLOGY NOTE ────────────────────────────────────────────────────────
+// Hospice provider counts per region derived from:
+// 1. CMS QCOR/CASPER data (Sept 2024): hospices per 100k Medicare beneficiaries by state
+// 2. Hospice Care Chartbook 2025: 6,691 total US providers in 2024 (39.6% growth since 2019)
+// 3. 2017 CMS Program Statistics (last published state-level counts): Idaho=49, WY=17,
+//    CO=65, ND=11, SD=~20, NE=39, NM=43, KS=73, MI=126
+// 4. Applied ~39.6% growth factor, then allocated to sub-state regions by
+//    population density and urban center count. These are estimates; actual CMS
+//    Care Compare search results may show slightly different active/inactive counts.
+
+const regions = [
+  // ── IDAHO — state total ~68 providers (49 × 1.39) ─────────────────────────
+  { id:"ID-NW", state:"Idaho", num:1, name:"ID North Panhandle",
+    pop:326000, elder:64000, elderPct:19.6, hospices:22,
+    towns:"Coeur d'Alene, Post Falls, Sandpoint, Moscow, Lewiston, Rathdrum, Hayden, Spirit Lake, Bonners Ferry, Orofino, St. Maries, Grangeville, Potlatch, Troy, Genesee, Kamiah" },
+  { id:"ID-SW", state:"Idaho", num:2, name:"ID SW — Boise / Treasure Valley",
+    pop:940000, elder:134000, elderPct:14.3, hospices:31,
+    towns:"Boise, Nampa, Meridian, Caldwell, Kuna, Eagle, Star, Middleton, Emmett, Payette, Weiser, Mountain Home, Glenns Ferry, Cascade, McCall, Fruitland, New Plymouth, Homedale" },
+  { id:"ID-SE", state:"Idaho", num:3, name:"ID SE — Pocatello / Twin Falls / Rexburg",
+    pop:362000, elder:53000, elderPct:14.6, hospices:15,
+    towns:"Pocatello, Idaho Falls, Rexburg, Twin Falls, Blackfoot, American Falls, Burley, Rupert, Jerome, Gooding, Shoshone, Driggs, Montpelier, Preston, Malad City, Soda Springs, Ashton, St. Anthony" },
+
+  // ── WYOMING — state total ~24 providers (17 × 1.39) ──────────────────────
+  { id:"WY-N", state:"Wyoming", num:4, name:"WY North — Cody / Sheridan / Buffalo",
+    pop:96000, elder:19500, elderPct:20.3, hospices:7,
+    towns:"Sheridan, Cody, Buffalo, Worland, Greybull, Lovell, Thermopolis, Basin, Ten Sleep, Ranchester, Dayton, Clearmont, Manderson, Powell" },
+  { id:"WY-EC", state:"Wyoming", num:5, name:"WY East Central — Casper / Douglas",
+    pop:105000, elder:19000, elderPct:18.1, hospices:9,
+    towns:"Casper, Douglas, Torrington, Wheatland, Guernsey, Glenrock, Mills, Evansville, Lusk, Newcastle, Sundance, Gillette, Moorcroft, Wright" },
+  { id:"WY-SE", state:"Wyoming", num:6, name:"WY SE — Laramie / Rawlins / Cheyenne",
+    pop:134000, elder:23500, elderPct:17.5, hospices:8,
+    towns:"Cheyenne, Laramie, Rawlins, Rock Springs, Evanston, Riverton, Lander, Pine Bluffs, Burns, Chugwater, Medicine Bow, Saratoga, Encampment, Pinedale, Kemmerer, Afton" },
+
+  // ── COLORADO — state total ~90 providers (65 × 1.39) ─────────────────────
+  { id:"CO-NE", state:"Colorado", num:7, name:"CO NE — Ft Collins / Loveland / Greeley",
+    pop:455000, elder:70000, elderPct:15.4, hospices:20,
+    towns:"Fort Collins, Loveland, Greeley, Windsor, Johnstown, Berthoud, Timnath, Wellington, Ault, Eaton, Milliken, Evans, Kersey, Severance, La Salle, Platteville, Mead, Frederick, Firestone" },
+  { id:"CO-ND", state:"Colorado", num:8, name:"CO N Denver — Boulder / Broomfield",
+    pop:428000, elder:62000, elderPct:14.5, hospices:19,
+    towns:"Boulder, Broomfield, Longmont, Lafayette, Louisville, Superior, Erie, Northglenn, Thornton, Westminster, Brighton, Commerce City, Federal Heights, Henderson, Idaho Springs, Arvada (north)" },
+  { id:"CO-SD", state:"Colorado", num:9, name:"CO S Denver — Centennial / Parker / Castle Rock",
+    pop:412000, elder:60000, elderPct:14.6, hospices:21,
+    towns:"Centennial, Parker, Castle Rock, Aurora (south), Englewood, Littleton, Highlands Ranch, Lone Tree, Castle Pines, Elizabeth, Franktown, Limon, Hugo, Kiowa, Strasburg, Bennett, Byers, Calhan" },
+  { id:"CO-S", state:"Colorado", num:10, name:"CO Southern — Colo Springs / Pueblo / Trinidad",
+    pop:535000, elder:86000, elderPct:16.1, hospices:30,
+    towns:"Colorado Springs, Pueblo, Cañon City, Florence, Woodland Park, Manitou Springs, Security-Widefield, Fountain, Trinidad, Walsenburg, Cripple Creek, Victor, Salida, La Junta" },
+
+  // ── NORTH DAKOTA — state total ~15 providers (11 × 1.39) ─────────────────
+  { id:"ND-NW", state:"North Dakota", num:11, name:"ND NW — Williston / Minot",
+    pop:80000, elder:14000, elderPct:17.5, hospices:3,
+    towns:"Williston, Minot, Watford City, Stanley, Crosby, Tioga, Ray, Kenmare, Garrison, Burlington, Velva, Mohall, Bottineau" },
+  { id:"ND-NE", state:"North Dakota", num:12, name:"ND NE — Devils Lake / Grand Forks",
+    pop:85000, elder:16500, elderPct:19.4, hospices:3,
+    towns:"Grand Forks, Devils Lake, Grafton, Hillsboro, Cavalier, Langdon, Rolla, Dunseith, Rugby, Lakota, Minto, Park River, Pembina" },
+  { id:"ND-C", state:"North Dakota", num:13, name:"ND Central — Bismarck / Jamestown",
+    pop:122000, elder:20500, elderPct:16.8, hospices:5,
+    towns:"Bismarck, Mandan, Jamestown, Washburn, Hazen, Beulah, Linton, Napoleon, Carrington, Harvey, Steele, Valley City, Garrison" },
+  { id:"ND-E", state:"North Dakota", num:14, name:"ND East — Fargo / Valley City",
+    pop:140000, elder:20000, elderPct:14.3, hospices:4,
+    towns:"Fargo, West Fargo, Wahpeton, Valley City, Lisbon, Oakes, Ellendale, Edgeley, LaMoure, Kindred, Casselton, Mapleton, Harwood" },
+  { id:"ND-S", state:"North Dakota", num:15, name:"ND South — Dickinson / Stark area",
+    pop:54000, elder:10500, elderPct:19.4, hospices:2,
+    towns:"Dickinson, New Salem, Glen Ullin, Hebron, New England, Hettinger, Bowman, Reeder, Regent, Killdeer, Manning, Halliday" },
+
+  // ── SOUTH DAKOTA — state total ~28 providers ─────────────────────────────
+  { id:"SD-SE", state:"South Dakota", num:16, name:"SD SE — Sioux Falls / Mitchell",
+    pop:302000, elder:43000, elderPct:14.2, hospices:16,
+    towns:"Sioux Falls, Mitchell, Brookings, Madison, Huron, Dell Rapids, Brandon, Hartford, Tea, Harrisburg, Canton, Lennox, Parker, Flandreau, Volga, Arlington, Watertown" },
+  { id:"SD-WC", state:"South Dakota", num:17, name:"SD West Central — Rapid City / Pierre",
+    pop:202000, elder:38000, elderPct:18.8, hospices:12,
+    towns:"Rapid City, Pierre, Spearfish, Hot Springs, Lead, Deadwood, Sturgis, Box Elder, Belle Fourche, Wall, Philip, Winner, Mobridge, Gettysburg, Aberdeen" },
+
+  // ── NEBRASKA — state total ~54 providers (39 × 1.39) ─────────────────────
+  { id:"NE-E", state:"Nebraska", num:18, name:"NE East — Omaha / Lincoln / Bellevue",
+    pop:820000, elder:118000, elderPct:14.4, hospices:30,
+    towns:"Omaha, Lincoln, Bellevue, Papillion, La Vista, Gretna, Plattsmouth, Nebraska City, Fremont, Blair, Wahoo, Seward, Beatrice, Columbus, Schuyler, Crete, Hebron, Fairbury, Auburn, Falls City, Ashland" },
+  { id:"NE-SC", state:"Nebraska", num:19, name:"NE South Central — Grand Island / Kearney / Lexington",
+    pop:175000, elder:31000, elderPct:17.7, hospices:14,
+    towns:"Grand Island, Kearney, Hastings, Lexington, Cozad, Minden, Aurora, Holdrege, McCook, Cambridge, Oxford, Alma, Arapahoe, Red Cloud, Superior, Clay Center, Geneva" },
+  { id:"NE-W", state:"Nebraska", num:20, name:"NE West — Scottsbluff / Alliance / Chadron",
+    pop:112000, elder:22000, elderPct:19.6, hospices:10,
+    towns:"Scottsbluff, Alliance, Chadron, North Platte, Gering, Sidney, Kimball, Bridgeport, Rushville, Gordon, Valentine, O'Neill, Norfolk, Wayne, Ainsworth, Atkinson, Neligh, Pierce, Creighton" },
+
+  // ── NEW MEXICO — state total ~60 providers (43 × 1.39) ───────────────────
+  { id:"NM-NC", state:"New Mexico", num:21, name:"NM North Central — Taos / Santa Fe / Albuquerque",
+    pop:958000, elder:164000, elderPct:17.1, hospices:48,
+    towns:"Albuquerque, Santa Fe, Taos, Espanola, Los Alamos, Belen, Raton, Springer, Tucumcari, Clovis, Portales, Las Vegas NM, Pecos, Edgewood, Moriarty, Estancia, Cimarron, Eagle Nest" },
+  { id:"NM-RR", state:"New Mexico", num:22, name:"NM Rio Rancho / Sandoval / Valencia",
+    pop:184000, elder:31000, elderPct:16.8, hospices:12,
+    towns:"Rio Rancho, Bernalillo, Corrales, Placitas, Cuba, Jemez Springs, Los Lunas, Belen, Bosque Farms, Peralta, Grants, Milan, Laguna Pueblo, Acoma Pueblo" },
+
+  // ── KANSAS — state total ~101 providers (73 × 1.39) ──────────────────────
+  { id:"KS-C", state:"Kansas", num:23, name:"KS Central — Wichita Metro",
+    pop:588000, elder:94000, elderPct:16.0, hospices:55,
+    towns:"Wichita, Derby, Haysville, Andover, Newton, Hutchinson, McPherson, Salina, Abilene, Winfield, Arkansas City, Wellington, Pratt, Kingman, Great Bend, Hays, El Dorado, Augusta, Bel Aire, Maize, Valley Center" }
+];
+
+// Compute ratio = elder / hospices
+regions.forEach(r => { r.ratio = Math.round(r.elder / r.hospices); });
+
+const minR = Math.min(...regions.map(r=>r.ratio));
+const maxR = Math.max(...regions.map(r=>r.ratio));
+
+function ratioColor(ratio) {
+  const t = Math.max(0, Math.min(1, (ratio - minR) / (maxR - minR)));
+  const stops = [
+    [0.0,  [200, 48,  22 ]],
+    [0.22, [222, 98,  18 ]],
+    [0.44, [212, 172, 14 ]],
+    [0.64, [135, 192, 32 ]],
+    [0.82, [42,  168, 72 ]],
+    [1.0,  [15,  118, 42 ]],
+  ];
+  let i=0; while (i<stops.length-1 && t>stops[i+1][0]) i++;
+  const [t0,c0]=stops[i],[t1,c1]=stops[Math.min(i+1,stops.length-1)];
+  const f=t1>t0?(t-t0)/(t1-t0):0;
+  return `rgb(${Math.round(c0[0]+f*(c1[0]-c0[0]))},${Math.round(c0[1]+f*(c1[1]-c0[1]))},${Math.round(c0[2]+f*(c1[2]-c0[2]))})`;
+}
+
+const fmt = n => n.toLocaleString();
+const focusStates = new Set(["Idaho","Wyoming","Colorado","North Dakota","South Dakota","Nebraska","New Mexico","Kansas","Michigan"]);
+const stateAbbrs = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY","District of Columbia":"DC"};
+
+const countyMap = {
+  "Boundary||Idaho":"ID-NW","Bonner||Idaho":"ID-NW","Kootenai||Idaho":"ID-NW","Shoshone||Idaho":"ID-NW","Benewah||Idaho":"ID-NW","Latah||Idaho":"ID-NW","Clearwater||Idaho":"ID-NW","Idaho||Idaho":"ID-NW","Lewis||Idaho":"ID-NW","Nez Perce||Idaho":"ID-NW",
+  "Ada||Idaho":"ID-SW","Canyon||Idaho":"ID-SW","Gem||Idaho":"ID-SW","Elmore||Idaho":"ID-SW","Payette||Idaho":"ID-SW","Owyhee||Idaho":"ID-SW","Washington||Idaho":"ID-SW","Adams||Idaho":"ID-SW","Valley||Idaho":"ID-SW",
+  "Bannock||Idaho":"ID-SE","Bingham||Idaho":"ID-SE","Bonneville||Idaho":"ID-SE","Madison||Idaho":"ID-SE","Jefferson||Idaho":"ID-SE","Teton||Idaho":"ID-SE","Power||Idaho":"ID-SE","Caribou||Idaho":"ID-SE","Bear Lake||Idaho":"ID-SE","Oneida||Idaho":"ID-SE","Franklin||Idaho":"ID-SE","Cassia||Idaho":"ID-SE","Twin Falls||Idaho":"ID-SE","Jerome||Idaho":"ID-SE","Lincoln||Idaho":"ID-SE","Minidoka||Idaho":"ID-SE","Blaine||Idaho":"ID-SE","Camas||Idaho":"ID-SE","Gooding||Idaho":"ID-SE","Clark||Idaho":"ID-SE","Lemhi||Idaho":"ID-SE","Custer||Idaho":"ID-SE","Butte||Idaho":"ID-SE","Fremont||Idaho":"ID-SE",
+  "Park||Wyoming":"WY-N","Washakie||Wyoming":"WY-N","Johnson||Wyoming":"WY-N","Sheridan||Wyoming":"WY-N","Big Horn||Wyoming":"WY-N","Hot Springs||Wyoming":"WY-N",
+  "Natrona||Wyoming":"WY-EC","Converse||Wyoming":"WY-EC","Platte||Wyoming":"WY-EC","Niobrara||Wyoming":"WY-EC","Goshen||Wyoming":"WY-EC","Campbell||Wyoming":"WY-EC","Weston||Wyoming":"WY-EC","Crook||Wyoming":"WY-EC",
+  "Laramie||Wyoming":"WY-SE","Carbon||Wyoming":"WY-SE","Albany||Wyoming":"WY-SE","Sweetwater||Wyoming":"WY-SE","Uinta||Wyoming":"WY-SE","Lincoln||Wyoming":"WY-SE","Sublette||Wyoming":"WY-SE","Fremont||Wyoming":"WY-SE","Teton||Wyoming":"WY-SE",
+  "Larimer||Colorado":"CO-NE","Weld||Colorado":"CO-NE",
+  "Boulder||Colorado":"CO-ND","Broomfield||Colorado":"CO-ND","Adams||Colorado":"CO-ND","Clear Creek||Colorado":"CO-ND","Gilpin||Colorado":"CO-ND",
+  "Arapahoe||Colorado":"CO-SD","Douglas||Colorado":"CO-SD","Elbert||Colorado":"CO-SD","Lincoln||Colorado":"CO-SD","Cheyenne||Colorado":"CO-SD","Kit Carson||Colorado":"CO-SD",
+  "El Paso||Colorado":"CO-S","Pueblo||Colorado":"CO-S","Huerfano||Colorado":"CO-S","Las Animas||Colorado":"CO-S","Custer||Colorado":"CO-S","Fremont||Colorado":"CO-S","Teller||Colorado":"CO-S","Otero||Colorado":"CO-S","Crowley||Colorado":"CO-S","Bent||Colorado":"CO-S","Prowers||Colorado":"CO-S",
+  "Divide||North Dakota":"ND-NW","Williams||North Dakota":"ND-NW","McKenzie||North Dakota":"ND-NW","Mountrail||North Dakota":"ND-NW","Burke||North Dakota":"ND-NW","Ward||North Dakota":"ND-NW","Renville||North Dakota":"ND-NW","Bottineau||North Dakota":"ND-NW","McHenry||North Dakota":"ND-NW","Rolette||North Dakota":"ND-NW",
+  "Ramsey||North Dakota":"ND-NE","Cavalier||North Dakota":"ND-NE","Pembina||North Dakota":"ND-NE","Walsh||North Dakota":"ND-NE","Grand Forks||North Dakota":"ND-NE","Nelson||North Dakota":"ND-NE","Eddy||North Dakota":"ND-NE","Benson||North Dakota":"ND-NE","Towner||North Dakota":"ND-NE","Pierce||North Dakota":"ND-NE",
+  "Burleigh||North Dakota":"ND-C","Morton||North Dakota":"ND-C","McLean||North Dakota":"ND-C","Mercer||North Dakota":"ND-C","Oliver||North Dakota":"ND-C","Sheridan||North Dakota":"ND-C","Wells||North Dakota":"ND-C","Foster||North Dakota":"ND-C","Kidder||North Dakota":"ND-C","Stutsman||North Dakota":"ND-C","Barnes||North Dakota":"ND-C",
+  "Cass||North Dakota":"ND-E","Richland||North Dakota":"ND-E","Ransom||North Dakota":"ND-E","Sargent||North Dakota":"ND-E","La Moure||North Dakota":"ND-E","Logan||North Dakota":"ND-E","McIntosh||North Dakota":"ND-E","Dickey||North Dakota":"ND-E","Steele||North Dakota":"ND-E","Traill||North Dakota":"ND-E",
+  "Grant||North Dakota":"ND-S","Sioux||North Dakota":"ND-S","Emmons||North Dakota":"ND-S","Adams||North Dakota":"ND-S","Slope||North Dakota":"ND-S","Bowman||North Dakota":"ND-S","Hettinger||North Dakota":"ND-S","Stark||North Dakota":"ND-S","Dunn||North Dakota":"ND-S","Billings||North Dakota":"ND-S","Golden Valley||North Dakota":"ND-S",
+  "Minnehaha||South Dakota":"SD-SE","Lincoln||South Dakota":"SD-SE","Turner||South Dakota":"SD-SE","Moody||South Dakota":"SD-SE","Brookings||South Dakota":"SD-SE","Lake||South Dakota":"SD-SE","McCook||South Dakota":"SD-SE","Hanson||South Dakota":"SD-SE","Davison||South Dakota":"SD-SE","Aurora||South Dakota":"SD-SE","Sanborn||South Dakota":"SD-SE","Jerauld||South Dakota":"SD-SE","Beadle||South Dakota":"SD-SE","Kingsbury||South Dakota":"SD-SE","Miner||South Dakota":"SD-SE","Hand||South Dakota":"SD-SE","Spink||South Dakota":"SD-SE","Clark||South Dakota":"SD-SE","Codington||South Dakota":"SD-SE","Deuel||South Dakota":"SD-SE","Hamlin||South Dakota":"SD-SE","Grant||South Dakota":"SD-SE","Roberts||South Dakota":"SD-SE","Day||South Dakota":"SD-SE","Marshall||South Dakota":"SD-SE","Brown||South Dakota":"SD-SE","Faulk||South Dakota":"SD-SE","Potter||South Dakota":"SD-SE","Sully||South Dakota":"SD-SE",
+  "Pennington||South Dakota":"SD-WC","Meade||South Dakota":"SD-WC","Lawrence||South Dakota":"SD-WC","Custer||South Dakota":"SD-WC","Fall River||South Dakota":"SD-WC","Oglala Lakota||South Dakota":"SD-WC","Bennett||South Dakota":"SD-WC","Mellette||South Dakota":"SD-WC","Todd||South Dakota":"SD-WC","Lyman||South Dakota":"SD-WC","Jones||South Dakota":"SD-WC","Haakon||South Dakota":"SD-WC","Stanley||South Dakota":"SD-WC","Ziebach||South Dakota":"SD-WC","Dewey||South Dakota":"SD-WC","Walworth||South Dakota":"SD-WC","Corson||South Dakota":"SD-WC","Campbell||South Dakota":"SD-WC","McPherson||South Dakota":"SD-WC","Edmunds||South Dakota":"SD-WC","Perkins||South Dakota":"SD-WC","Butte||South Dakota":"SD-WC","Harding||South Dakota":"SD-WC","Hughes||South Dakota":"SD-WC","Shannon||South Dakota":"SD-WC",
+  "Douglas||Nebraska":"NE-E","Sarpy||Nebraska":"NE-E","Lancaster||Nebraska":"NE-E","Cass||Nebraska":"NE-E","Washington||Nebraska":"NE-E","Saunders||Nebraska":"NE-E","Dodge||Nebraska":"NE-E","Seward||Nebraska":"NE-E","Butler||Nebraska":"NE-E","Colfax||Nebraska":"NE-E","Platte||Nebraska":"NE-E","Nance||Nebraska":"NE-E","Polk||Nebraska":"NE-E","York||Nebraska":"NE-E","Fillmore||Nebraska":"NE-E","Thayer||Nebraska":"NE-E","Jefferson||Nebraska":"NE-E","Gage||Nebraska":"NE-E","Pawnee||Nebraska":"NE-E","Johnson||Nebraska":"NE-E","Nemaha||Nebraska":"NE-E","Richardson||Nebraska":"NE-E","Otoe||Nebraska":"NE-E","Cuming||Nebraska":"NE-E","Stanton||Nebraska":"NE-E","Madison||Nebraska":"NE-E","Antelope||Nebraska":"NE-E","Pierce||Nebraska":"NE-E","Wayne||Nebraska":"NE-E","Cedar||Nebraska":"NE-E","Dixon||Nebraska":"NE-E","Dakota||Nebraska":"NE-E","Thurston||Nebraska":"NE-E","Burt||Nebraska":"NE-E","Boone||Nebraska":"NE-E","Merrick||Nebraska":"NE-E",
+  "Hall||Nebraska":"NE-SC","Hamilton||Nebraska":"NE-SC","Howard||Nebraska":"NE-SC","Sherman||Nebraska":"NE-SC","Dawson||Nebraska":"NE-SC","Buffalo||Nebraska":"NE-SC","Kearney||Nebraska":"NE-SC","Adams||Nebraska":"NE-SC","Clay||Nebraska":"NE-SC","Nuckolls||Nebraska":"NE-SC","Webster||Nebraska":"NE-SC","Franklin||Nebraska":"NE-SC","Harlan||Nebraska":"NE-SC","Phelps||Nebraska":"NE-SC","Gosper||Nebraska":"NE-SC","Furnas||Nebraska":"NE-SC","Red Willow||Nebraska":"NE-SC","Frontier||Nebraska":"NE-SC","Hitchcock||Nebraska":"NE-SC","Hayes||Nebraska":"NE-SC","Dundy||Nebraska":"NE-SC","Chase||Nebraska":"NE-SC","Perkins||Nebraska":"NE-SC","Garfield||Nebraska":"NE-SC","Loup||Nebraska":"NE-SC","Wheeler||Nebraska":"NE-SC","Blaine||Nebraska":"NE-SC","Valley||Nebraska":"NE-SC","Greeley||Nebraska":"NE-SC",
+  "Scotts Bluff||Nebraska":"NE-W","Dawes||Nebraska":"NE-W","Box Butte||Nebraska":"NE-W","Sioux||Nebraska":"NE-W","Sheridan||Nebraska":"NE-W","Cherry||Nebraska":"NE-W","Brown||Nebraska":"NE-W","Keya Paha||Nebraska":"NE-W","Rock||Nebraska":"NE-W","Holt||Nebraska":"NE-W","Boyd||Nebraska":"NE-W","Knox||Nebraska":"NE-W","Thomas||Nebraska":"NE-W","Logan||Nebraska":"NE-W","McPherson||Nebraska":"NE-W","Grant||Nebraska":"NE-W","Hooker||Nebraska":"NE-W","Arthur||Nebraska":"NE-W","Keith||Nebraska":"NE-W","Deuel||Nebraska":"NE-W","Garden||Nebraska":"NE-W","Morrill||Nebraska":"NE-W","Banner||Nebraska":"NE-W","Kimball||Nebraska":"NE-W","Cheyenne||Nebraska":"NE-W","Lincoln||Nebraska":"NE-W",
+  "Bernalillo||New Mexico":"NM-NC","Santa Fe||New Mexico":"NM-NC","Taos||New Mexico":"NM-NC","Rio Arriba||New Mexico":"NM-NC","Mora||New Mexico":"NM-NC","Colfax||New Mexico":"NM-NC","Union||New Mexico":"NM-NC","Harding||New Mexico":"NM-NC","San Miguel||New Mexico":"NM-NC","Torrance||New Mexico":"NM-NC","Guadalupe||New Mexico":"NM-NC","Quay||New Mexico":"NM-NC","De Baca||New Mexico":"NM-NC","Curry||New Mexico":"NM-NC","Roosevelt||New Mexico":"NM-NC","Lea||New Mexico":"NM-NC","Chaves||New Mexico":"NM-NC","Eddy||New Mexico":"NM-NC","Lincoln||New Mexico":"NM-NC","Otero||New Mexico":"NM-NC","Socorro||New Mexico":"NM-NC","Sierra||New Mexico":"NM-NC","Catron||New Mexico":"NM-NC","Grant||New Mexico":"NM-NC","Hidalgo||New Mexico":"NM-NC","Luna||New Mexico":"NM-NC","Doña Ana||New Mexico":"NM-NC",
+  "Sandoval||New Mexico":"NM-RR","Valencia||New Mexico":"NM-RR","Cibola||New Mexico":"NM-RR","McKinley||New Mexico":"NM-RR",
+  "Sedgwick||Kansas":"KS-C","Harvey||Kansas":"KS-C","Reno||Kansas":"KS-C","McPherson||Kansas":"KS-C","Marion||Kansas":"KS-C","Butler||Kansas":"KS-C","Cowley||Kansas":"KS-C","Sumner||Kansas":"KS-C","Kingman||Kansas":"KS-C","Pratt||Kansas":"KS-C","Stafford||Kansas":"KS-C","Rice||Kansas":"KS-C","Saline||Kansas":"KS-C","Ottawa||Kansas":"KS-C","Dickinson||Kansas":"KS-C","Ellsworth||Kansas":"KS-C","Lincoln||Kansas":"KS-C","Mitchell||Kansas":"KS-C","Republic||Kansas":"KS-C","Cloud||Kansas":"KS-C","Jewell||Kansas":"KS-C","Smith||Kansas":"KS-C","Osborne||Kansas":"KS-C","Russell||Kansas":"KS-C","Ellis||Kansas":"KS-C","Barton||Kansas":"KS-C","Pawnee||Kansas":"KS-C","Edwards||Kansas":"KS-C","Kiowa||Kansas":"KS-C","Clark||Kansas":"KS-C","Ford||Kansas":"KS-C","Meade||Kansas":"KS-C","Seward||Kansas":"KS-C","Comanche||Kansas":"KS-C","Barber||Kansas":"KS-C","Harper||Kansas":"KS-C","Grant||Kansas":"KS-C","Haskell||Kansas":"KS-C","Gray||Kansas":"KS-C","Finney||Kansas":"KS-C","Kearny||Kansas":"KS-C","Hamilton||Kansas":"KS-C","Stanton||Kansas":"KS-C","Morton||Kansas":"KS-C","Stevens||Kansas":"KS-C"
+};
+
+const regionById = {};
+regions.forEach(r => regionById[r.id] = r);
+
+// Build legend sorted high→low ratio
+const sorted = [...regions].sort((a,b) => b.ratio - a.ratio);
+const ll = document.getElementById('legend-list');
+sorted.forEach((r,i) => {
+  const row = document.createElement('div');
+  row.className='legend-row'; row.id='leg-'+r.id;
+  row.innerHTML = `<span class="leg-num">${i+1}</span>
+    <span class="leg-swatch" style="background:${ratioColor(r.ratio)}"></span>
+    <div class="leg-info">
+      <div class="leg-name">${r.name}</div>
+      <div class="leg-detail">${fmt(r.elder)} 65+ / ${r.hospices} hospices = ${fmt(r.ratio)}:1</div>
+    </div>`;
+  row.addEventListener('mouseenter', ()=>highlightRegion(r.id));
+  row.addEventListener('mouseleave', clearHighlight);
+  ll.appendChild(row);
+});
+
+// Scale bar
+const sr = document.getElementById('scale-row');
+for (let i=0;i<24;i++){
+  const v=minR+(i/23)*(maxR-minR);
+  const seg=document.createElement('div'); seg.className='sc-seg';
+  seg.style.background=ratioColor(v); sr.appendChild(seg);
+}
+
+const tip=document.getElementById('tooltip');
+
+function highlightRegion(id){
+  d3.selectAll('.region-path').each(function(d){
+    const el=d3.select(this);
+    el.classed('highlighted',d.rid===id).classed('dimmed',d.rid!==id);
+  });
+  document.querySelectorAll('.legend-row').forEach(el=>el.classList.remove('active'));
+  const leg=document.getElementById('leg-'+id);
+  if(leg){leg.classList.add('active');leg.scrollIntoView({block:'nearest',behavior:'smooth'});}
+}
+function clearHighlight(){
+  d3.selectAll('.region-path').classed('dimmed',false).classed('highlighted',false);
+  document.querySelectorAll('.legend-row').forEach(el=>el.classList.remove('active'));
+  tip.style.display='none';
+}
+
+d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json').then(us=>{
+  const proj=d3.geoAlbersUsa().scale(1060).translate([480,290]);
+  const path=d3.geoPath().projection(proj);
+  const svg=d3.select('#map');
+  const stateFeats=topojson.feature(us,us.objects.states).features;
+  const countyFeats=topojson.feature(us,us.objects.counties).features;
+
+  const stateById2={};
+  stateFeats.forEach(f=>stateById2[String(f.id).padStart(2,'0')]=f.properties.name);
+
+  svg.append('g').selectAll('path')
+    .data(stateFeats).join('path')
+    .attr('class','bg-state').attr('d',path);
+
+  const regGroup=svg.append('g');
+  const lblGroup=svg.append('g');
+  const centroids={};
+
+  countyFeats.forEach(f=>{
+    const fips=String(f.id).padStart(5,'0');
+    const sName=stateById2[fips.slice(0,2)];
+    const cName=(f.properties.name||'').replace(/ County$/,'').replace(/ Parish$/,'').replace(/ Borough$/,'').replace(/ Census Area$/,'').replace(/ City and Borough$/,'').replace(/ Municipality$/,'');
+    const rid=countyMap[cName+'||'+sName];
+    if(!rid) return;
+    const r=regionById[rid];
+    if(!r) return;
+
+    regGroup.append('path').datum({rid})
+      .attr('class','region-path')
+      .attr('d',path(f))
+      .attr('fill',ratioColor(r.ratio))
+      .on('mousemove',function(event){
+        tip.style.display='block';
+        tip.style.left=Math.min(event.clientX+16,window.innerWidth-255)+'px';
+        tip.style.top=Math.max(event.clientY-105,8)+'px';
+        document.getElementById('tt-name').textContent=r.name;
+        document.getElementById('tt-state').textContent=r.state;
+        document.getElementById('tt-num').textContent='Region #'+r.num;
+        document.getElementById('tt-pop').textContent=fmt(r.pop);
+        document.getElementById('tt-elder').textContent=fmt(r.elder);
+        document.getElementById('tt-pct').textContent=r.elderPct+'%';
+        document.getElementById('tt-hosp').textContent='~'+r.hospices+' providers';
+        const rv=document.getElementById('tt-ratio');
+        rv.textContent=fmt(r.ratio)+' seniors per provider';
+        rv.style.color=ratioColor(r.ratio);
+        document.getElementById('tt-towns').textContent='📍 '+r.towns;
+        highlightRegion(rid);
+      })
+      .on('mouseleave',clearHighlight);
+
+    if(!centroids[rid]) centroids[rid]=[];
+    const c=path.centroid(f);
+    if(!isNaN(c[0])) centroids[rid].push(c);
+  });
+
+  Object.entries(centroids).forEach(([rid,pts])=>{
+    if(!pts.length) return;
+    const r=regionById[rid];
+    const cx=pts.reduce((s,c)=>s+c[0],0)/pts.length;
+    const cy=pts.reduce((s,c)=>s+c[1],0)/pts.length;
+    lblGroup.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9.5)
+      .attr('fill','rgba(15,25,35,0.78)').attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',0.8).attr('pointer-events','none');
+    lblGroup.append('text').attr('x',cx).attr('y',cy).attr('class','rnum-txt').text(r?r.num:'');
+  });
+
+  svg.append('g').selectAll('path')
+    .data(stateFeats.filter(f=>focusStates.has(f.properties.name)))
+    .join('path').attr('class','focus-outline').attr('d',path);
+
+  svg.append('g').selectAll('text')
+    .data(stateFeats).join('text').attr('class','state-label')
+    .attr('x',d=>path.centroid(d)[0]).attr('y',d=>path.centroid(d)[1])
+    .text(d=>stateAbbrs[d.properties.name]||'');
+});
+</script>
+</body>
+</html>
