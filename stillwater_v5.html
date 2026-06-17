@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; background: #0f1923; color: #ccdde8; }
+  #wrap { display: flex; flex-direction: column; height: 100vh; min-height: 560px; position: relative; }
+
+  #header { padding: 10px 18px 8px; background: #0f1923; border-bottom: 1px solid #1e3448; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  #header h1 { font-size: 13px; font-weight: 700; color: #a8cfe0; letter-spacing: 0.4px; }
+  #header p  { font-size: 9.5px; color: #4a7090; margin-top: 2px; }
+  #back-btn  { display: none; align-items: center; gap: 6px; background: #1a3048; border: 1px solid #2a5070; border-radius: 4px; color: #7ab8d4; font-size: 10px; font-family: Georgia, serif; cursor: pointer; padding: 5px 10px; transition: background 0.15s; flex-shrink: 0; }
+  #back-btn:hover { background: #234060; }
+  #back-btn svg { width: 12px; height: 12px; fill: none; stroke: #7ab8d4; stroke-width: 2; }
+  #state-title { color: #5ad090; }
+
+  #body { display: flex; flex: 1; overflow: hidden; }
+  #map-wrap { flex: 1; position: relative; min-width: 0; overflow: hidden; }
+  svg { width: 100%; height: 100%; }
+
+  /* Map — v4 exact */
+  .bg-state      { fill: #1a2e40; stroke: #0f1923; stroke-width: 0.8; }
+  .region-path   { stroke: #0f1923; stroke-width: 0.7; cursor: pointer; transition: opacity 0.2s, filter 0.2s; }
+  .region-path.dimmed      { opacity: 0.1; filter: grayscale(1) brightness(0.3); }
+  .region-path.highlighted { opacity: 1; filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,255,255,0.18)); }
+  .focus-outline { fill: none; stroke: #3a6a88; stroke-width: 1.4; pointer-events: none; }
+  .focus-state   { fill: transparent; stroke: none; cursor: pointer; }
+  .state-label   { font-size: 6.5px; fill: rgba(100,150,180,0.45); text-anchor: middle; dominant-baseline: central; pointer-events: none; font-weight: 700; letter-spacing: 0.4px; }
+  .rnum-txt      { pointer-events: none; font-family: Georgia, serif; font-weight: 700; font-size: 7.5px; fill: rgba(255,255,255,0.95); text-anchor: middle; dominant-baseline: central; }
+  .click-hint    { font-size: 7px; fill: rgba(90,208,144,0.6); text-anchor: middle; pointer-events: none; font-family: Georgia, serif; }
+
+  /* Provider dots */
+  .provider-dot { cursor: pointer; }
+  .provider-dot circle.main { transition: opacity 0.15s, r 0.15s; }
+
+  /* Sidebar — v4 exact */
+  #sidebar { width: 202px; flex-shrink: 0; background: #0d1720; border-left: 1px solid #1e3448; overflow-y: auto; display: flex; flex-direction: column; }
+  #sidebar-top { padding: 8px 10px 6px; border-bottom: 1px solid #1e3448; background: #101d2b; flex-shrink: 0; }
+  #sidebar-top h2 { font-size: 9px; font-weight: 700; color: #88b8cc; text-transform: uppercase; letter-spacing: 0.8px; }
+  #sidebar-top p  { font-size: 8px; color: #4a7090; margin-top: 2px; }
+  #legend-list { flex: 1; overflow-y: auto; }
+
+  /* Region ranked rows — v4 exact */
+  .legend-row { display: flex; align-items: center; gap: 5px; padding: 4px 7px; cursor: pointer; border-bottom: 1px solid #1a2e40; transition: background 0.1s; }
+  .legend-row:hover, .legend-row.active { background: #162a1a; }
+  .leg-num    { font-size: 9px; color: #4a7090; min-width: 14px; text-align: right; flex-shrink: 0; }
+  .leg-swatch { width: 20px; height: 13px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.08); }
+  .leg-info   { flex: 1; min-width: 0; }
+  .leg-name   { font-size: 9px; color: #b8d4e0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .leg-detail { font-size: 7.5px; color: #4a8a5a; }
+
+  /* State stats panel */
+  #state-stats { display: none; padding: 7px 10px 5px; border-bottom: 1px solid #1e3448; flex-shrink: 0; background: #0f1d2b; }
+  #state-stats h3 { font-size: 9px; font-weight: 700; color: #5ad090; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 5px; }
+  .stat-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  .stat-lbl { font-size: 8px; color: #4a7090; }
+  .stat-val { font-size: 8px; font-weight: 700; color: #b8d4e0; }
+  .stat-ratio { font-size: 9px; font-weight: 700; }
+
+  /* NE region toggle */
+  #ne-toggle { display: none; gap: 4px; margin-bottom: 6px; }
+  .region-btn { flex: 1; background: #152235; border: 1px solid #2a4860; border-radius: 4px; color: #7a9aaa; font-size: 7.5px; font-family: Georgia, serif; cursor: pointer; padding: 4px 2px; transition: all 0.15s; }
+  .region-btn:hover { background: #1c3048; color: #b8d4e0; }
+  .region-btn.active { background: #1e4030; border-color: #2e6048; color: #5ad090; font-weight: 700; }
+
+  /* Provider list */
+  .prov-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-bottom: 1px solid #182a3a; cursor: pointer; transition: background 0.1s; }
+  .prov-row:hover, .prov-row.active { background: #152235; }
+  .prov-dot-sm { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .prov-name   { font-size: 8.5px; color: #b8d4e0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prov-city   { font-size: 7.5px; color: #4a7090; margin-top: 1px; }
+
+  /* Scale bar — v4 exact */
+  #scale-wrap { padding: 7px 10px; border-top: 1px solid #1e3448; background: #101d2b; flex-shrink: 0; }
+  #scale-wrap p { font-size: 7.5px; color: #4a7090; margin-bottom: 4px; }
+  #scale-row { display: flex; height: 10px; border-radius: 2px; overflow: hidden; }
+  .sc-seg { flex: 1; }
+  #scale-labels { display: flex; justify-content: space-between; margin-top: 3px; }
+
+  /* Provider list section header in sidebar */
+  .prov-section-hdr { padding: 5px 8px 3px; background: #0f1d2b; border-bottom: 1px solid #1e3448; }
+  .prov-section-hdr span { font-size: 8px; font-weight: 700; color: #88b8cc; text-transform: uppercase; letter-spacing: 0.6px; }
+
+  /* Tooltips */
+  #tooltip { position: fixed; background: #0d1720; border: 1px solid #2a6040; border-radius: 8px; padding: 10px 13px; pointer-events: none; display: none; z-index: 999; max-width: 245px; box-shadow: 0 4px 22px rgba(0,0,0,0.6); font-family: Georgia, serif; }
+  #tooltip h3 { font-size: 11.5px; color: #5ad090; margin-bottom: 6px; font-weight: 700; border-bottom: 1px solid #1e3a28; padding-bottom: 4px; }
+  .tt-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .tt-lbl { color: #4a7090; font-size: 9.5px; }
+  .tt-val { color: #b8d4e0; font-weight: 700; font-size: 9.5px; }
+  .tt-ratio-val { font-weight: 700; font-size: 10.5px; }
+  .tt-towns { font-size: 8.5px; color: #5a8a6a; margin-top: 5px; padding-top: 4px; border-top: 1px solid #1e3a28; line-height: 1.5; }
+
+  #prov-tooltip { position: fixed; background: #0a1520; border: 1px solid #1e5038; border-radius: 8px; padding: 10px 13px; pointer-events: none; display: none; z-index: 1000; max-width: 255px; box-shadow: 0 6px 24px rgba(0,0,0,0.7); font-family: Georgia, serif; }
+  #prov-tooltip h3 { font-size: 11px; color: #5ad090; margin-bottom: 6px; font-weight: 700; border-bottom: 1px solid #1a3828; padding-bottom: 4px; line-height: 1.4; }
+  .pt-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .pt-lbl { color: #4a7090; font-size: 9px; }
+  .pt-val { color: #b8d4e0; font-weight: 700; font-size: 9px; text-align: right; }
+
+  #state-prompt { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,21,32,0.82); border: 1px solid #1e3448; border-radius: 20px; padding: 5px 14px; font-size: 9px; color: #4a8090; pointer-events: none; transition: opacity 0.4s; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="back-btn" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        All States
+      </button>
+      <div>
+        <h1>Stillwater Hospice &nbsp;·&nbsp; Market Analysis &nbsp;·&nbsp; 9 States · 23 Regions &nbsp;<span id="state-title"></span></h1>
+        <p id="header-sub">2024 Census &amp; CMS provider data &nbsp;·&nbsp; Color = total population ÷ licensed hospice providers &nbsp;·&nbsp; Green = high ratio (underserved) · Red = lower ratio &nbsp;·&nbsp; Click CO · NE · SD · ND to explore providers</p>
+      </div>
+    </div>
+  </div>
+  <div id="body">
+    <div id="map-wrap">
+      <div id="state-prompt">↓ Click Colorado, Nebraska, South Dakota, or North Dakota to explore providers</div>
+      <!-- Region tooltip (v4 exact) -->
+      <div id="tooltip">
+        <h3 id="tt-name"></h3>
+        <div class="tt-row"><span class="tt-lbl">State</span><span class="tt-val" id="tt-state"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Region #</span><span class="tt-val" id="tt-num"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Total Pop (2024)</span><span class="tt-val" id="tt-pop"></span></div>
+        <div class="tt-row"><span class="tt-lbl">65+ Population</span><span class="tt-val" id="tt-elder"></span></div>
+        <div class="tt-row"><span class="tt-lbl">65+ Rate</span><span class="tt-val" id="tt-pct"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Est. Hospice Providers</span><span class="tt-val" id="tt-hosp"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Total Pop per Provider</span><span class="tt-ratio-val" id="tt-ratio"></span></div>
+        <div class="tt-towns" id="tt-towns"></div>
+      </div>
+      <!-- Provider tooltip -->
+      <div id="prov-tooltip">
+        <h3 id="pt-name"></h3>
+        <div class="pt-row"><span class="pt-lbl">Address</span><span class="pt-val" id="pt-addr"></span></div>
+        <div class="pt-row"><span class="pt-lbl">City / State</span><span class="pt-val" id="pt-city"></span></div>
+      </div>
+      <svg id="map" viewBox="0 0 960 580" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div id="sidebar">
+      <div id="sidebar-top">
+        <h2 id="sb-title">Ranked by Pop:Hospice Ratio</h2>
+        <p id="sb-sub">Most underserved (highest ratio) first ↓</p>
+      </div>
+      <!-- State stats (shown when zoomed in) -->
+      <div id="state-stats">
+        <h3 id="ss-name">—</h3>
+        <div id="ne-toggle">
+          <button class="region-btn active" data-region="all" onclick="setNERegion('all')">Statewide</button>
+          <button class="region-btn" data-region="metro" onclick="setNERegion('metro')">Eastern Metro</button>
+          <button class="region-btn" data-region="plains" onclick="setNERegion('plains')">Central/West</button>
+        </div>
+        <div class="stat-row"><span class="stat-lbl">Population</span><span class="stat-val" id="ss-pop">—</span></div>
+        <div class="stat-row"><span class="stat-lbl" id="ss-pop-lbl" style="font-style:italic;color:#3a5a78;font-size:7px"></span></div>
+        <div class="stat-row"><span class="stat-lbl">65+ Population</span><span class="stat-val" id="ss-pct65">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Active Providers</span><span class="stat-val" id="ss-count">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Pop per Provider</span><span class="stat-val stat-ratio" id="ss-ratio">—</span></div>
+      </div>
+      <div id="legend-list"></div>
+      <div id="scale-wrap">
+        <p>Total population per hospice provider</p>
+        <div id="scale-row"></div>
+        <div id="scale-labels">
+          <span style="font-size:7px;color:#d44020;">Low</span>
+          <span style="font-size:7px;color:#c8a820;">Moderate</span>
+          <span style="font-size:7px;color:#28a048;">High</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+
+// ── PROVIDERS (active rows only, no flagged) ──────────────────────────────────
+const PROVIDERS = [
+  // NORTHERN COLORADO
+  { name:"Accentcare Home Health of Mountain Valley LLC", addr:"4065 St Cloud Dr",               city:"Loveland",     state:"CO", lat:40.398, lng:-105.074, hh:true,  pc:false },
+  { name:"Alliant Palliative Care And Hospice",           addr:"12225 N Pecos St #100",          city:"Westminster",  state:"CO", lat:39.883, lng:-105.015, hh:false, pc:true  },
+  { name:"Banner Hospice of Northern Colorado",           addr:"2001 70th Avenue, Suite 100",    city:"Greeley",      state:"CO", lat:40.421, lng:-104.763, hh:false, pc:true  },
+  { name:"Bristlecone Health Services Hospice",           addr:"68 School Rd, Ste. 200",         city:"Frisco",       state:"CO", lat:39.574, lng:-106.098, hh:false, pc:false },
+  { name:"Bristol Hospice Northern Colorado",             addr:"3770 Puritan Way E",             city:"Frederick",    state:"CO", lat:40.098, lng:-104.930, hh:false, pc:true  },
+  { name:"Canyon Home Care & Hospice",                    addr:"2000 S Colorado Blvd, Ste. 110", city:"Denver",       state:"CO", lat:39.677, lng:-104.956, hh:true,  pc:true  },
+  { name:"Caring Hands Hospice",                          addr:"286 16th St",                    city:"Burlington",   state:"CO", lat:39.301, lng:-102.270, hh:false, pc:false },
+  { name:"Compassionate Hospice Care LLC",                addr:"11935 Quay St",                  city:"Broomfield",   state:"CO", lat:39.921, lng:-105.087, hh:false, pc:false },
+  { name:"Craft Hospice",                                 addr:"1650 38th Street, Suite 101E",   city:"Boulder",      state:"CO", lat:40.015, lng:-105.270, hh:true,  pc:false },
+  { name:"Dignity Hospice of Colorado LLC",               addr:"400 E 84th Ave #202",            city:"Thornton",     state:"CO", lat:39.887, lng:-104.972, hh:false, pc:false },
+  { name:"Estes Park Health Hospice",                     addr:"555 Prospect Ave",               city:"Estes Park",   state:"CO", lat:40.377, lng:-105.521, hh:false, pc:false },
+  { name:"Hospice of The Plains – Sterling",              addr:"302 N 9th Ave",                  city:"Sterling",     state:"CO", lat:40.626, lng:-103.208, hh:false, pc:false },
+  { name:"Hospice of The Plains – Wray",                  addr:"421 Main St",                    city:"Wray",         state:"CO", lat:40.076, lng:-102.221, hh:false, pc:false },
+  { name:"Lincoln Community Home Health and Hospice",     addr:"111 6th St",                     city:"Hugo",         state:"CO", lat:39.133, lng:-103.469, hh:true,  pc:false },
+  { name:"Pathways Hospice (Fort Collins)",               addr:"305 Carpenter Rd",               city:"Fort Collins", state:"CO", lat:40.548, lng:-105.065, hh:false, pc:true  },
+  { name:"Pathways Hospice (Greeley)",                    addr:"4075 W 11th St",                 city:"Greeley",      state:"CO", lat:40.409, lng:-104.791, hh:false, pc:true  },
+  { name:"Seasons Hospice & Palliative Care of Colorado", addr:"9191 Sheridan Blvd, Ste. 103",   city:"Westminster",  state:"CO", lat:39.836, lng:-105.036, hh:false, pc:true  },
+  { name:"St. Anthony Hospice",                           addr:"2551 W 84th Ave, 1st Floor",     city:"Westminster",  state:"CO", lat:39.843, lng:-105.038, hh:false, pc:false },
+  { name:"Suncrest Hospice – Loveland",                   addr:"1605 Foxtrail Dr, Ste. 200",     city:"Loveland",     state:"CO", lat:40.401, lng:-105.072, hh:true,  pc:true  },
+  { name:"The Denver Hospice North",                      addr:"5054 W 92nd Ave",                city:"Westminster",  state:"CO", lat:39.843, lng:-105.040, hh:false, pc:false },
+  { name:"Trail Winds Hospice",                           addr:"4710 Table Mesa Dr, Ste B",      city:"Boulder",      state:"CO", lat:40.008, lng:-105.265, hh:false, pc:false },
+  { name:"Tru Community Care – Longmont",                 addr:"1950 Mountain View Ave, 4th Fl", city:"Longmont",     state:"CO", lat:40.167, lng:-105.101, hh:true,  pc:true  },
+  // SOUTH DAKOTA
+  { name:"AseraCare Hospice Care (Amedisys)",             addr:"6009 W 41st St, Ste. 4",         city:"Sioux Falls",  state:"SD", lat:43.508, lng:-96.770,  hh:true,  pc:true  },
+  { name:"Sanford Health Hospice House",                  addr:"1320 W 17th St",                 city:"Sioux Falls",  state:"SD", lat:43.544, lng:-96.738,  hh:false, pc:false },
+  { name:"Avera at Home – Aberdeen",                      addr:"305 S State St",                 city:"Aberdeen",     state:"SD", lat:45.464, lng:-98.486,  hh:true,  pc:true  },
+  { name:"Avera at Home – Milbank",                       addr:"301 Flynn Drive",                city:"Milbank",      state:"SD", lat:45.219, lng:-96.635,  hh:true,  pc:true  },
+  { name:"Avera at Home – Mitchell",                      addr:"1115 E 5th Ave",                 city:"Mitchell",     state:"SD", lat:43.710, lng:-98.030,  hh:true,  pc:true  },
+  { name:"Avera at Home – Pierre",                        addr:"800 East Dakota Ave",            city:"Pierre",       state:"SD", lat:44.368, lng:-100.351, hh:true,  pc:true  },
+  { name:"Avera at Home – Sioux Falls",                   addr:"800 East 21st Street",           city:"Sioux Falls",  state:"SD", lat:43.546, lng:-96.735,  hh:true,  pc:true  },
+  { name:"Avera at Home – Yankton",                       addr:"1115 West 9th St",               city:"Yankton",      state:"SD", lat:42.878, lng:-97.397,  hh:true,  pc:true  },
+  { name:"Brookings Health System Hospital Hospice",      addr:"2311 Yorkshire Dr",              city:"Brookings",    state:"SD", lat:44.311, lng:-96.798,  hh:false, pc:false },
+  { name:"Huron Regional Medical Center Hospice",         addr:"172 Fourth St SE",               city:"Huron",        state:"SD", lat:44.363, lng:-98.214,  hh:false, pc:false },
+  { name:"Prairie Lakes Hospital Hospice",                addr:"401 9th Ave NW",                 city:"Watertown",    state:"SD", lat:44.900, lng:-97.115,  hh:false, pc:false },
+  { name:"SD State Penitentiary (Prison Hospice)",        addr:"PO Box 5911",                    city:"Sioux Falls",  state:"SD", lat:43.528, lng:-96.722,  hh:false, pc:false },
+  { name:"Sanford Hospice – Chamberlain",                 addr:"110 W Beebe Ave",                city:"Chamberlain",  state:"SD", lat:43.800, lng:-99.330,  hh:true,  pc:true  },
+  { name:"Sanford Hospice – Sioux Falls",                 addr:"2710 W 12th Street",             city:"Sioux Falls",  state:"SD", lat:43.542, lng:-96.741,  hh:true,  pc:true  },
+  { name:"Sanford Hospice – Vermillion",                  addr:"20 S Plum St",                   city:"Vermillion",   state:"SD", lat:42.779, lng:-96.929,  hh:true,  pc:true  },
+  { name:"St. Croix Hospice – Sioux Falls",               addr:"6330 S Western Ave, Ste. 100",   city:"Sioux Falls",  state:"SD", lat:43.513, lng:-96.748,  hh:false, pc:false },
+  { name:"Stillwater Hospice of Western South Dakota",    addr:"3117 West Rapid St, Ste. 5",     city:"Rapid City",   state:"SD", lat:44.080, lng:-103.231, hh:false, pc:false },
+  // NORTH DAKOTA
+  { name:"CHI Health Connect at Home – Dickinson",        addr:"986 2nd Ave W",                  city:"Dickinson",    state:"ND", lat:46.879, lng:-102.790, hh:true,  pc:true  },
+  { name:"CHI Health at Home – Bismarck",                 addr:"1212 E Main Ave",                city:"Bismarck",     state:"ND", lat:46.813, lng:-100.779, hh:true,  pc:true  },
+  { name:"CHI Health at Home – Valley City",              addr:"367 2nd St SW",                  city:"Valley City",  state:"ND", lat:46.923, lng:-98.003,  hh:true,  pc:true  },
+  { name:"CHI Health at Home – Williston",                addr:"1301 15th Avenue W",             city:"Williston",    state:"ND", lat:48.147, lng:-103.619, hh:true,  pc:true  },
+  { name:"Ethos Hospice – Fargo",                         addr:"3361 45th Street S, Ste. 100",   city:"Fargo",        state:"ND", lat:46.838, lng:-96.880,  hh:false, pc:false },
+  { name:"Ethos Hospice – Bismarck",                      addr:"2425 Hillview Ave, Ste. 1001",   city:"Bismarck",     state:"ND", lat:46.820, lng:-100.772, hh:false, pc:false },
+  { name:"Ethos Hospice – Grand Forks",                   addr:"4491 S Washington St, Ste. A",   city:"Grand Forks",  state:"ND", lat:47.925, lng:-97.033,  hh:false, pc:false },
+  { name:"HIA (formerly HRRV) – Fargo",                   addr:"1701 38th St S, Ste. 101",       city:"Fargo",        state:"ND", lat:46.841, lng:-96.884,  hh:false, pc:true  },
+  { name:"HIA (formerly HRRV) – Minot",                   addr:"1015 S Broadway #2, Ste. A201",  city:"Minot",        state:"ND", lat:48.232, lng:-101.296, hh:false, pc:false },
+  { name:"HIA (formerly HRRV) – Bismarck",                addr:"1400 43rd Ave. NE, Ste. 212",    city:"Bismarck",     state:"ND", lat:46.818, lng:-100.762, hh:false, pc:false },
+  { name:"HIA (formerly HRRV) – Grand Forks",             addr:"3001A 32nd Ave S, Ste. 1A",      city:"Grand Forks",  state:"ND", lat:47.920, lng:-97.040,  hh:false, pc:true  },
+  { name:"HIA (formerly HRRV) – Valley City",             addr:"1240 West Main Street",          city:"Valley City",  state:"ND", lat:46.920, lng:-98.008,  hh:false, pc:true  },
+  { name:"Heart of America Hospice",                       addr:"800 Main Avenue S",              city:"Rugby",        state:"ND", lat:48.368, lng:-100.001, hh:false, pc:false },
+  { name:"Jamestown Regional Medical Center Hospice",      addr:"2422 20th St SW",                city:"Jamestown",    state:"ND", lat:46.906, lng:-98.694,  hh:false, pc:false },
+  { name:"Sakakawea Medical Center Hospice",               addr:"510 8th Avenue NE",              city:"Hazen",        state:"ND", lat:47.295, lng:-101.624, hh:false, pc:false },
+  { name:"Sanford Fargo Hospice",                          addr:"820 4th St N",                   city:"Fargo",        state:"ND", lat:46.872, lng:-96.795,  hh:true,  pc:true  },
+  { name:"Sanford Home Care Hospice",                      addr:"910 18th St NW",                 city:"Mandan",       state:"ND", lat:46.827, lng:-100.893, hh:true,  pc:true  },
+  { name:"Trinity Hospitals – Hospice",                    addr:"1015 S Broadway, Ste. 306",      city:"Minot",        state:"ND", lat:48.235, lng:-101.299, hh:false, pc:false },
+  // NEBRASKA
+  { name:"Angels Care Hospice – Omaha",                    addr:"10040 Regency Circle, Ste. 330", city:"Omaha",        state:"NE", lat:41.257, lng:-96.050,  hh:false, pc:false },
+  { name:"Angels Care Hospice – McCook",                   addr:"711 E 11th St, Suite A",         city:"McCook",       state:"NE", lat:40.202, lng:-100.626, hh:false, pc:false },
+  { name:"AseraCare Hospice – Grand Island",               addr:"912 Concord Ave",                city:"Grand Island", state:"NE", lat:40.925, lng:-98.342,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Kearney",                    addr:"4111 4th Ave, Ste. 50",          city:"Kearney",      state:"NE", lat:40.700, lng:-99.082,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Lincoln",                    addr:"5715 S 34th St, Ste. 100",       city:"Lincoln",      state:"NE", lat:40.762, lng:-96.648,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Norfolk",                    addr:"120 N 27th St, Ste. 300",        city:"Norfolk",      state:"NE", lat:41.986, lng:-97.418,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – O'Neill",                    addr:"421 E Douglas St",               city:"O'Neill",      state:"NE", lat:42.456, lng:-98.648,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Omaha",                      addr:"8710 Frederick St, Ste. 100",    city:"Omaha",        state:"NE", lat:41.260, lng:-96.051,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – York",                       addr:"401 Lincoln Ave, Ste. 2",        city:"York",         state:"NE", lat:40.869, lng:-97.596,  hh:true,  pc:true  },
+  { name:"Avera at Home Hospice – Hartington",             addr:"405 W Darlene St",               city:"Hartington",   state:"NE", lat:42.622, lng:-97.263,  hh:false, pc:false },
+  { name:"Avera at Home – O'Neill",                        addr:"300 N 2nd St",                   city:"O'Neill",      state:"NE", lat:42.458, lng:-98.645,  hh:true,  pc:true  },
+  { name:"Brookestone – Alliance",                         addr:"150 W 24th St, Suite 100",       city:"Alliance",     state:"NE", lat:42.102, lng:-102.872, hh:false, pc:false },
+  { name:"Brookestone – Gering",                           addr:"1335 M St, Suite 100",           city:"Gering",       state:"NE", lat:41.825, lng:-103.660, hh:false, pc:false },
+  { name:"Brookestone – North Platte",                     addr:"904 S Linden Dr",                city:"North Platte", state:"NE", lat:41.124, lng:-100.765, hh:false, pc:false },
+  { name:"Brookestone – Elkhorn",                          addr:"600 Brookestone Meadows Plaza",   city:"Elkhorn",      state:"NE", lat:41.288, lng:-96.237,  hh:false, pc:false },
+  { name:"Brookestone – Kearney",                          addr:"4111 4th Ave, Suite 50",         city:"Kearney",      state:"NE", lat:40.698, lng:-99.080,  hh:false, pc:false },
+  { name:"Burgess Health Center Hospice",                  addr:"1600 Diamond St",                city:"Decatur",      state:"NE", lat:42.007, lng:-96.249,  hh:true,  pc:false },
+  { name:"CHI Health at Home – Lincoln",                   addr:"245 S 84th St, Ste. 300",        city:"Lincoln",      state:"NE", lat:40.801, lng:-96.706,  hh:true,  pc:true  },
+  { name:"CHI Health at Home – Omaha",                     addr:"7415 Cedar St",                  city:"Omaha",        state:"NE", lat:41.221, lng:-96.068,  hh:true,  pc:true  },
+  { name:"Central Plains Hospice",                         addr:"835 Meridian Ave",               city:"Cozad",        state:"NE", lat:40.862, lng:-99.985,  hh:false, pc:false },
+  { name:"Chadron Community Hospital Hospice",             addr:"825 Centennial Dr",              city:"Chadron",      state:"NE", lat:42.829, lng:-103.001, hh:true,  pc:false },
+  { name:"Charter Hospice of Omaha",                       addr:"4805 S 107th Ave",               city:"Omaha",        state:"NE", lat:41.195, lng:-96.087,  hh:false, pc:false },
+  { name:"Community Health Care & Hospice",                addr:"1301 E H St",                    city:"McCook",       state:"NE", lat:40.200, lng:-100.628, hh:true,  pc:false },
+  { name:"Compassionate Care Hospice",                     addr:"6818 Grover St, Ste. 304",       city:"Omaha",        state:"NE", lat:41.231, lng:-96.009,  hh:false, pc:false },
+  { name:"Cottonwood Hospice",                             addr:"1201 N 10th St",                 city:"Beatrice",     state:"NE", lat:40.268, lng:-96.747,  hh:false, pc:false },
+  { name:"Endless Journey",                                addr:"10909 Mill Valley Rd, Ste. 205", city:"Omaha",        state:"NE", lat:41.228, lng:-96.149,  hh:false, pc:false },
+  { name:"Faith Regional Health Services Hospice",         addr:"1500 Koenigstein Ave",           city:"Norfolk",      state:"NE", lat:41.984, lng:-97.415,  hh:true,  pc:false },
+  { name:"Gentiva Hospice – Omaha",                        addr:"444 Regency Pkwy Dr, Ste. 200",  city:"Omaha",        state:"NE", lat:41.258, lng:-96.053,  hh:true,  pc:true  },
+  { name:"Hillcrest Hospice – Bellevue",                   addr:"1820 Hillcrest Dr, Ste. B",      city:"Bellevue",     state:"NE", lat:41.130, lng:-95.895,  hh:false, pc:false },
+  { name:"Horisun Hospice – Lincoln",                      addr:"2200 S 40th St, Ste. 101",       city:"Lincoln",      state:"NE", lat:40.785, lng:-96.684,  hh:false, pc:false },
+  { name:"Hospice & Home Healthcare of Saunders County",   addr:"141 E 5th St",                   city:"Wahoo",        state:"NE", lat:41.212, lng:-96.624,  hh:true,  pc:false },
+  { name:"Hospice of Columbus Community Hospital",         addr:"3005 19th St, Ste. 600",         city:"Columbus",     state:"NE", lat:41.429, lng:-97.367,  hh:false, pc:false },
+  { name:"Hospice of Tabitha – Grand Island",              addr:"2838 Old Fair Rd",               city:"Grand Island", state:"NE", lat:40.928, lng:-98.344,  hh:true,  pc:false },
+  { name:"Hospice of Tabitha – Lincoln",                   addr:"4720 Randolph St",               city:"Lincoln",      state:"NE", lat:40.800, lng:-96.703,  hh:true,  pc:false },
+  { name:"Hospice of Tabitha – Crete",                     addr:"819 Central Ave",                city:"Crete",        state:"NE", lat:40.629, lng:-96.965,  hh:true,  pc:false },
+  { name:"Mary Lanning Hospice",                           addr:"715 N Saint Joseph Ave",         city:"Hastings",     state:"NE", lat:40.589, lng:-98.388,  hh:true,  pc:false },
+  { name:"Methodist Fremont Health Hospice",               addr:"450 E 23rd St",                  city:"Fremont",      state:"NE", lat:41.426, lng:-96.498,  hh:true,  pc:false },
+  { name:"Oncare Hospice",                                 addr:"16934 Frances St, Ste. 106",     city:"Omaha",        state:"NE", lat:41.216, lng:-96.165,  hh:false, pc:false },
+  { name:"Peaceful Hearts Hospice",                        addr:"1812 N 203rd St",                city:"Elkhorn",      state:"NE", lat:41.284, lng:-96.231,  hh:false, pc:false },
+  { name:"ProMedica Hospice – Lincoln",                    addr:"3801 Union Dr, Ste. 202",        city:"Lincoln",      state:"NE", lat:40.760, lng:-96.645,  hh:true,  pc:true  },
+  { name:"Providence Hospice",                             addr:"1200 Providence Rd",             city:"Wayne",        state:"NE", lat:42.232, lng:-97.018,  hh:false, pc:false },
+  { name:"St. Croix Hospice",                             addr:"11207 W Dodge Rd",               city:"Omaha",        state:"NE", lat:41.230, lng:-96.148,  hh:false, pc:false },
+  { name:"St. Joseph Villa Homecare & Hospice",           addr:"1000 N 90th St, Ste. 203",       city:"Omaha",        state:"NE", lat:41.261, lng:-96.054,  hh:true,  pc:false },
+  { name:"Traditions Health",                             addr:"5550 S 59th St, Ste. 12",        city:"Lincoln",      state:"NE", lat:40.758, lng:-96.643,  hh:false, pc:true  },
+  { name:"VCHS Hospice",                                  addr:"2707 L St",                      city:"Ord",          state:"NE", lat:41.602, lng:-98.927,  hh:false, pc:false },
+  { name:"ruralMED Home Care Resources",                  addr:"1600 W 13th St",                 city:"Lexington",    state:"NE", lat:40.781, lng:-99.741,  hh:true,  pc:false },
+];
+
+// ── V4 EXACT REGIONS (all 23) ─────────────────────────────────────────────────
+const regions = [
+  { id:"ID-NW", state:"Idaho",        num:1,  name:"ID North Panhandle",                    pop:326000,  elder:64000,  elderPct:19.6, hospices:22, towns:"Coeur d'Alene, Post Falls, Sandpoint, Moscow, Lewiston, Rathdrum, Hayden, Spirit Lake, Bonners Ferry, Orofino, St. Maries, Grangeville, Potlatch, Troy, Genesee, Kamiah" },
+  { id:"ID-SW", state:"Idaho",        num:2,  name:"ID SW — Boise / Treasure Valley",       pop:940000,  elder:134000, elderPct:14.3, hospices:31, towns:"Boise, Nampa, Meridian, Caldwell, Kuna, Eagle, Star, Middleton, Emmett, Payette, Weiser, Mountain Home, Glenns Ferry, Cascade, McCall, Fruitland, New Plymouth, Homedale" },
+  { id:"ID-SE", state:"Idaho",        num:3,  name:"ID SE — Pocatello / Twin Falls / Rexburg", pop:362000, elder:53000, elderPct:14.6, hospices:15, towns:"Pocatello, Idaho Falls, Rexburg, Twin Falls, Blackfoot, American Falls, Burley, Rupert, Jerome, Gooding, Shoshone, Driggs, Montpelier, Preston, Malad City, Soda Springs, Ashton, St. Anthony" },
+  { id:"WY-N",  state:"Wyoming",      num:4,  name:"WY North — Cody / Sheridan / Buffalo",   pop:96000,   elder:19500,  elderPct:20.3, hospices:7,  towns:"Sheridan, Cody, Buffalo, Worland, Greybull, Lovell, Thermopolis, Basin, Ten Sleep, Ranchester, Dayton, Clearmont, Manderson, Powell" },
+  { id:"WY-EC", state:"Wyoming",      num:5,  name:"WY East Central — Casper / Douglas",     pop:105000,  elder:19000,  elderPct:18.1, hospices:9,  towns:"Casper, Douglas, Torrington, Wheatland, Guernsey, Glenrock, Mills, Evansville, Lusk, Newcastle, Sundance, Gillette, Moorcroft, Wright" },
+  { id:"WY-SE", state:"Wyoming",      num:6,  name:"WY SE — Laramie / Rawlins / Cheyenne",   pop:134000,  elder:23500,  elderPct:17.5, hospices:8,  towns:"Cheyenne, Laramie, Rawlins, Rock Springs, Evanston, Riverton, Lander, Pine Bluffs, Burns, Chugwater, Medicine Bow, Saratoga, Encampment, Pinedale, Kemmerer, Afton" },
+  { id:"CO-NE", state:"Colorado",     num:7,  name:"CO NE — Ft Collins / Loveland / Greeley", pop:455000, elder:70000,  elderPct:15.4, hospices:20, towns:"Fort Collins, Loveland, Greeley, Windsor, Johnstown, Berthoud, Timnath, Wellington, Ault, Eaton, Milliken, Evans, Kersey, Severance, La Salle, Platteville, Mead, Frederick, Firestone" },
+  { id:"CO-ND", state:"Colorado",     num:8,  name:"CO N Denver — Boulder / Broomfield",     pop:428000,  elder:62000,  elderPct:14.5, hospices:19, towns:"Boulder, Broomfield, Longmont, Lafayette, Louisville, Superior, Erie, Northglenn, Thornton, Westminster, Brighton, Commerce City, Federal Heights, Henderson, Idaho Springs, Arvada (north)" },
+  { id:"CO-SD", state:"Colorado",     num:9,  name:"CO S Denver — Centennial / Parker / Castle Rock", pop:412000, elder:60000, elderPct:14.6, hospices:21, towns:"Centennial, Parker, Castle Rock, Aurora (south), Englewood, Littleton, Highlands Ranch, Lone Tree, Castle Pines, Elizabeth, Franktown, Limon, Hugo, Kiowa, Strasburg, Bennett, Byers, Calhan" },
+  { id:"CO-S",  state:"Colorado",     num:10, name:"CO Southern — Colo Springs / Pueblo / Trinidad", pop:535000, elder:86000, elderPct:16.1, hospices:30, towns:"Colorado Springs, Pueblo, Cañon City, Florence, Woodland Park, Manitou Springs, Security-Widefield, Fountain, Trinidad, Walsenburg, Cripple Creek, Victor, Salida, La Junta" },
+  { id:"ND-NW", state:"North Dakota", num:11, name:"ND NW — Williston / Minot",              pop:80000,   elder:14000,  elderPct:17.5, hospices:3,  towns:"Williston, Minot, Watford City, Stanley, Crosby, Tioga, Ray, Kenmare, Garrison, Burlington, Velva, Mohall, Bottineau" },
+  { id:"ND-NE", state:"North Dakota", num:12, name:"ND NE — Devils Lake / Grand Forks",      pop:85000,   elder:16500,  elderPct:19.4, hospices:3,  towns:"Grand Forks, Devils Lake, Grafton, Hillsboro, Cavalier, Langdon, Rolla, Dunseith, Rugby, Lakota, Minto, Park River, Pembina" },
+  { id:"ND-C",  state:"North Dakota", num:13, name:"ND Central — Bismarck / Jamestown",      pop:122000,  elder:20500,  elderPct:16.8, hospices:5,  towns:"Bismarck, Mandan, Jamestown, Washburn, Hazen, Beulah, Linton, Napoleon, Carrington, Harvey, Steele, Valley City, Garrison" },
+  { id:"ND-E",  state:"North Dakota", num:14, name:"ND East — Fargo / Valley City",          pop:140000,  elder:20000,  elderPct:14.3, hospices:4,  towns:"Fargo, West Fargo, Wahpeton, Valley City, Lisbon, Oakes, Ellendale, Edgeley, LaMoure, Kindred, Casselton, Mapleton, Harwood" },
+  { id:"ND-S",  state:"North Dakota", num:15, name:"ND South — Dickinson / Stark area",      pop:54000,   elder:10500,  elderPct:19.4, hospices:2,  towns:"Dickinson, New Salem, Glen Ullin, Hebron, New England, Hettinger, Bowman, Reeder, Regent, Killdeer, Manning, Halliday" },
+  { id:"SD-SE", state:"South Dakota", num:16, name:"SD SE — Sioux Falls / Mitchell",         pop:302000,  elder:43000,  elderPct:14.2, hospices:16, towns:"Sioux Falls, Mitchell, Brookings, Madison, Huron, Dell Rapids, Brandon, Hartford, Tea, Harrisburg, Canton, Lennox, Parker, Flandreau, Volga, Arlington, Watertown" },
+  { id:"SD-WC", state:"South Dakota", num:17, name:"SD West Central — Rapid City / Pierre",  pop:202000,  elder:38000,  elderPct:18.8, hospices:12, towns:"Rapid City, Pierre, Spearfish, Hot Springs, Lead, Deadwood, Sturgis, Box Elder, Belle Fourche, Wall, Philip, Winner, Mobridge, Gettysburg, Aberdeen" },
+  { id:"NE-E",  state:"Nebraska",     num:18, name:"NE East — Omaha / Lincoln / Bellevue",   pop:820000,  elder:118000, elderPct:14.4, hospices:30, towns:"Omaha, Lincoln, Bellevue, Papillion, La Vista, Gretna, Plattsmouth, Nebraska City, Fremont, Blair, Wahoo, Seward, Beatrice, Columbus, Schuyler, Crete, Hebron, Fairbury, Auburn, Falls City, Ashland" },
+  { id:"NE-SC", state:"Nebraska",     num:19, name:"NE South Central — Grand Island / Kearney", pop:175000, elder:31000, elderPct:17.7, hospices:14, towns:"Grand Island, Kearney, Hastings, Lexington, Cozad, Minden, Aurora, Holdrege, McCook, Cambridge, Oxford, Alma, Arapahoe, Red Cloud, Superior, Clay Center, Geneva" },
+  { id:"NE-W",  state:"Nebraska",     num:20, name:"NE West — Scottsbluff / Alliance / Chadron", pop:112000, elder:22000, elderPct:19.6, hospices:10, towns:"Scottsbluff, Alliance, Chadron, North Platte, Gering, Sidney, Kimball, Bridgeport, Rushville, Gordon, Valentine, O'Neill, Norfolk, Wayne, Ainsworth, Atkinson, Neligh, Pierce, Creighton" },
+  { id:"NM-NC", state:"New Mexico",   num:21, name:"NM North Central",                        pop:958000,  elder:164000, elderPct:17.1, hospices:48, towns:"Albuquerque, Santa Fe, Taos, Espanola, Los Alamos, Belen, Raton, Springer, Tucumcari, Clovis, Portales, Las Vegas NM, Pecos, Edgewood, Moriarty, Estancia, Cimarron, Eagle Nest" },
+  { id:"NM-RR", state:"New Mexico",   num:22, name:"NM Rio Rancho / Sandoval / Valencia",     pop:184000,  elder:31000,  elderPct:16.8, hospices:12, towns:"Rio Rancho, Bernalillo, Corrales, Placitas, Cuba, Jemez Springs, Los Lunas, Belen, Bosque Farms, Peralta, Grants, Milan, Laguna Pueblo, Acoma Pueblo" },
+  { id:"KS-C",  state:"Kansas",       num:23, name:"KS Central — Wichita Metro",              pop:588000,  elder:94000,  elderPct:16.0, hospices:55, towns:"Wichita, Derby, Haysville, Andover, Newton, Hutchinson, McPherson, Salina, Abilene, Winfield, Arkansas City, Wellington, Pratt, Kingman, Great Bend, Hays, El Dorado, Augusta, Bel Aire, Maize, Valley Center" },
+];
+
+regions.forEach(r => { r.ratio = Math.round(r.pop / r.hospices); });
+const regionById = {};
+regions.forEach(r => regionById[r.id] = r);
+const minR = Math.min(...regions.map(r=>r.ratio));
+const maxR = Math.max(...regions.map(r=>r.ratio));
+
+// ── V4 EXACT COLOR FUNCTION ───────────────────────────────────────────────────
+function ratioColor(ratio) {
+  const t = Math.max(0, Math.min(1, (ratio - minR) / (maxR - minR)));
+  const stops = [[0.0,[200,48,22]],[0.22,[222,98,18]],[0.44,[212,172,14]],[0.64,[135,192,32]],[0.82,[42,168,72]],[1.0,[15,118,42]]];
+  let i=0; while (i<stops.length-1 && t>stops[i+1][0]) i++;
+  const [t0,c0]=stops[i],[t1,c1]=stops[Math.min(i+1,stops.length-1)];
+  const f=t1>t0?(t-t0)/(t1-t0):0;
+  return `rgb(${Math.round(c0[0]+f*(c1[0]-c0[0]))},${Math.round(c0[1]+f*(c1[1]-c0[1]))},${Math.round(c0[2]+f*(c1[2]-c0[2]))})`;
+}
+
+function dotColor(hh, pc) {
+  if (hh && pc) return '#28a048';
+  if (hh)       return '#5aa0d0';
+  if (pc)       return '#c8a820';
+  return '#c8d8e8';
+}
+
+const fmt = n => n.toLocaleString();
+const focusStates = new Set(["Idaho","Wyoming","Colorado","North Dakota","South Dakota","Nebraska","New Mexico","Kansas","Michigan"]);
+const DRILL_STATES = new Set(["Colorado","Nebraska","South Dakota","North Dakota"]);
+const stateAbbrs = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY"};
+
+// State config for zoom + stats
+const STATE_CFG = {
+  CO: { name:"Northern Colorado", scale:5200, states:["Colorado"],     pad:30, pop:1152904, pct65:14.5, popLabel:"Larimer + Weld + Boulder + Broomfield Counties" },
+  SD: { name:"South Dakota",      scale:4000, states:["South Dakota"], pad:25, pop:924669,  pct65:17.3, popLabel:"Statewide (2024 est.)" },
+  ND: { name:"North Dakota",      scale:4200, states:["North Dakota"], pad:25, pop:796568,  pct65:16.0, popLabel:"Statewide (2024 est.)" },
+  NE: { name:"Nebraska",          scale:4600, states:["Nebraska"],     pad:25, pop:2005465, pct65:16.0, popLabel:"Statewide (2024 est.)" },
+};
+const NE_SUB = {
+  metro:  { pop:1224000, pct65:13.2, label:"Eastern Metro counties", cities:new Set(["Omaha","Lincoln","Bellevue","Fremont","Elkhorn","Wahoo","Crete","Decatur","Columbus","Norfolk","Wayne","Hartington"]) },
+  plains: { pop:285000,  pct65:18.0, label:"Central & Western counties", cities:null }
+};
+function neSubKey(city){ return NE_SUB.metro.cities.has(city) ? 'metro' : 'plains'; }
+
+// V4 EXACT countyMap
+const countyMap = {
+  "Boundary||Idaho":"ID-NW","Bonner||Idaho":"ID-NW","Kootenai||Idaho":"ID-NW","Shoshone||Idaho":"ID-NW","Benewah||Idaho":"ID-NW","Latah||Idaho":"ID-NW","Clearwater||Idaho":"ID-NW","Idaho||Idaho":"ID-NW","Lewis||Idaho":"ID-NW","Nez Perce||Idaho":"ID-NW",
+  "Ada||Idaho":"ID-SW","Canyon||Idaho":"ID-SW","Gem||Idaho":"ID-SW","Elmore||Idaho":"ID-SW","Payette||Idaho":"ID-SW","Owyhee||Idaho":"ID-SW","Washington||Idaho":"ID-SW","Adams||Idaho":"ID-SW","Valley||Idaho":"ID-SW",
+  "Bannock||Idaho":"ID-SE","Bingham||Idaho":"ID-SE","Bonneville||Idaho":"ID-SE","Madison||Idaho":"ID-SE","Jefferson||Idaho":"ID-SE","Teton||Idaho":"ID-SE","Power||Idaho":"ID-SE","Caribou||Idaho":"ID-SE","Bear Lake||Idaho":"ID-SE","Oneida||Idaho":"ID-SE","Franklin||Idaho":"ID-SE","Cassia||Idaho":"ID-SE","Twin Falls||Idaho":"ID-SE","Jerome||Idaho":"ID-SE","Lincoln||Idaho":"ID-SE","Minidoka||Idaho":"ID-SE","Blaine||Idaho":"ID-SE","Camas||Idaho":"ID-SE","Gooding||Idaho":"ID-SE","Clark||Idaho":"ID-SE","Lemhi||Idaho":"ID-SE","Custer||Idaho":"ID-SE","Butte||Idaho":"ID-SE","Fremont||Idaho":"ID-SE",
+  "Park||Wyoming":"WY-N","Washakie||Wyoming":"WY-N","Johnson||Wyoming":"WY-N","Sheridan||Wyoming":"WY-N","Big Horn||Wyoming":"WY-N","Hot Springs||Wyoming":"WY-N",
+  "Natrona||Wyoming":"WY-EC","Converse||Wyoming":"WY-EC","Platte||Wyoming":"WY-EC","Niobrara||Wyoming":"WY-EC","Goshen||Wyoming":"WY-EC","Campbell||Wyoming":"WY-EC","Weston||Wyoming":"WY-EC","Crook||Wyoming":"WY-EC",
+  "Laramie||Wyoming":"WY-SE","Carbon||Wyoming":"WY-SE","Albany||Wyoming":"WY-SE","Sweetwater||Wyoming":"WY-SE","Uinta||Wyoming":"WY-SE","Lincoln||Wyoming":"WY-SE","Sublette||Wyoming":"WY-SE","Fremont||Wyoming":"WY-SE","Teton||Wyoming":"WY-SE",
+  "Larimer||Colorado":"CO-NE","Weld||Colorado":"CO-NE",
+  "Boulder||Colorado":"CO-ND","Broomfield||Colorado":"CO-ND","Adams||Colorado":"CO-ND","Clear Creek||Colorado":"CO-ND","Gilpin||Colorado":"CO-ND",
+  "Arapahoe||Colorado":"CO-SD","Douglas||Colorado":"CO-SD","Elbert||Colorado":"CO-SD","Lincoln||Colorado":"CO-SD","Cheyenne||Colorado":"CO-SD","Kit Carson||Colorado":"CO-SD",
+  "El Paso||Colorado":"CO-S","Pueblo||Colorado":"CO-S","Huerfano||Colorado":"CO-S","Las Animas||Colorado":"CO-S","Custer||Colorado":"CO-S","Fremont||Colorado":"CO-S","Teller||Colorado":"CO-S","Otero||Colorado":"CO-S","Crowley||Colorado":"CO-S","Bent||Colorado":"CO-S","Prowers||Colorado":"CO-S",
+  "Divide||North Dakota":"ND-NW","Williams||North Dakota":"ND-NW","McKenzie||North Dakota":"ND-NW","Mountrail||North Dakota":"ND-NW","Burke||North Dakota":"ND-NW","Ward||North Dakota":"ND-NW","Renville||North Dakota":"ND-NW","Bottineau||North Dakota":"ND-NW","McHenry||North Dakota":"ND-NW","Rolette||North Dakota":"ND-NW",
+  "Ramsey||North Dakota":"ND-NE","Cavalier||North Dakota":"ND-NE","Pembina||North Dakota":"ND-NE","Walsh||North Dakota":"ND-NE","Grand Forks||North Dakota":"ND-NE","Nelson||North Dakota":"ND-NE","Eddy||North Dakota":"ND-NE","Benson||North Dakota":"ND-NE","Towner||North Dakota":"ND-NE","Pierce||North Dakota":"ND-NE",
+  "Burleigh||North Dakota":"ND-C","Morton||North Dakota":"ND-C","McLean||North Dakota":"ND-C","Mercer||North Dakota":"ND-C","Oliver||North Dakota":"ND-C","Sheridan||North Dakota":"ND-C","Wells||North Dakota":"ND-C","Foster||North Dakota":"ND-C","Kidder||North Dakota":"ND-C","Stutsman||North Dakota":"ND-C","Barnes||North Dakota":"ND-C",
+  "Cass||North Dakota":"ND-E","Richland||North Dakota":"ND-E","Ransom||North Dakota":"ND-E","Sargent||North Dakota":"ND-E","La Moure||North Dakota":"ND-E","Logan||North Dakota":"ND-E","McIntosh||North Dakota":"ND-E","Dickey||North Dakota":"ND-E","Steele||North Dakota":"ND-E","Traill||North Dakota":"ND-E",
+  "Grant||North Dakota":"ND-S","Sioux||North Dakota":"ND-S","Emmons||North Dakota":"ND-S","Adams||North Dakota":"ND-S","Slope||North Dakota":"ND-S","Bowman||North Dakota":"ND-S","Hettinger||North Dakota":"ND-S","Stark||North Dakota":"ND-S","Dunn||North Dakota":"ND-S","Billings||North Dakota":"ND-S","Golden Valley||North Dakota":"ND-S",
+  "Minnehaha||South Dakota":"SD-SE","Lincoln||South Dakota":"SD-SE","Turner||South Dakota":"SD-SE","Moody||South Dakota":"SD-SE","Brookings||South Dakota":"SD-SE","Lake||South Dakota":"SD-SE","McCook||South Dakota":"SD-SE","Hanson||South Dakota":"SD-SE","Davison||South Dakota":"SD-SE","Aurora||South Dakota":"SD-SE","Sanborn||South Dakota":"SD-SE","Jerauld||South Dakota":"SD-SE","Beadle||South Dakota":"SD-SE","Kingsbury||South Dakota":"SD-SE","Miner||South Dakota":"SD-SE","Hand||South Dakota":"SD-SE","Spink||South Dakota":"SD-SE","Clark||South Dakota":"SD-SE","Codington||South Dakota":"SD-SE","Deuel||South Dakota":"SD-SE","Hamlin||South Dakota":"SD-SE","Grant||South Dakota":"SD-SE","Roberts||South Dakota":"SD-SE","Day||South Dakota":"SD-SE","Marshall||South Dakota":"SD-SE","Brown||South Dakota":"SD-SE","Faulk||South Dakota":"SD-SE","Potter||South Dakota":"SD-SE","Sully||South Dakota":"SD-SE",
+  "Pennington||South Dakota":"SD-WC","Meade||South Dakota":"SD-WC","Lawrence||South Dakota":"SD-WC","Custer||South Dakota":"SD-WC","Fall River||South Dakota":"SD-WC","Oglala Lakota||South Dakota":"SD-WC","Bennett||South Dakota":"SD-WC","Mellette||South Dakota":"SD-WC","Todd||South Dakota":"SD-WC","Lyman||South Dakota":"SD-WC","Jones||South Dakota":"SD-WC","Haakon||South Dakota":"SD-WC","Stanley||South Dakota":"SD-WC","Ziebach||South Dakota":"SD-WC","Dewey||South Dakota":"SD-WC","Walworth||South Dakota":"SD-WC","Corson||South Dakota":"SD-WC","Campbell||South Dakota":"SD-WC","McPherson||South Dakota":"SD-WC","Edmunds||South Dakota":"SD-WC","Perkins||South Dakota":"SD-WC","Butte||South Dakota":"SD-WC","Harding||South Dakota":"SD-WC","Hughes||South Dakota":"SD-WC","Shannon||South Dakota":"SD-WC",
+  "Douglas||Nebraska":"NE-E","Sarpy||Nebraska":"NE-E","Lancaster||Nebraska":"NE-E","Cass||Nebraska":"NE-E","Washington||Nebraska":"NE-E","Saunders||Nebraska":"NE-E","Dodge||Nebraska":"NE-E","Seward||Nebraska":"NE-E","Butler||Nebraska":"NE-E","Colfax||Nebraska":"NE-E","Platte||Nebraska":"NE-E","Nance||Nebraska":"NE-E","Polk||Nebraska":"NE-E","York||Nebraska":"NE-E","Fillmore||Nebraska":"NE-E","Thayer||Nebraska":"NE-E","Jefferson||Nebraska":"NE-E","Gage||Nebraska":"NE-E","Pawnee||Nebraska":"NE-E","Johnson||Nebraska":"NE-E","Nemaha||Nebraska":"NE-E","Richardson||Nebraska":"NE-E","Otoe||Nebraska":"NE-E","Cuming||Nebraska":"NE-E","Stanton||Nebraska":"NE-E","Madison||Nebraska":"NE-E","Antelope||Nebraska":"NE-E","Pierce||Nebraska":"NE-E","Wayne||Nebraska":"NE-E","Cedar||Nebraska":"NE-E","Dixon||Nebraska":"NE-E","Dakota||Nebraska":"NE-E","Thurston||Nebraska":"NE-E","Burt||Nebraska":"NE-E","Boone||Nebraska":"NE-E","Merrick||Nebraska":"NE-E",
+  "Hall||Nebraska":"NE-SC","Hamilton||Nebraska":"NE-SC","Howard||Nebraska":"NE-SC","Sherman||Nebraska":"NE-SC","Dawson||Nebraska":"NE-SC","Buffalo||Nebraska":"NE-SC","Kearney||Nebraska":"NE-SC","Adams||Nebraska":"NE-SC","Clay||Nebraska":"NE-SC","Nuckolls||Nebraska":"NE-SC","Webster||Nebraska":"NE-SC","Franklin||Nebraska":"NE-SC","Harlan||Nebraska":"NE-SC","Phelps||Nebraska":"NE-SC","Gosper||Nebraska":"NE-SC","Furnas||Nebraska":"NE-SC","Red Willow||Nebraska":"NE-SC","Frontier||Nebraska":"NE-SC","Hitchcock||Nebraska":"NE-SC","Hayes||Nebraska":"NE-SC","Dundy||Nebraska":"NE-SC","Chase||Nebraska":"NE-SC","Perkins||Nebraska":"NE-SC","Garfield||Nebraska":"NE-SC","Loup||Nebraska":"NE-SC","Wheeler||Nebraska":"NE-SC","Blaine||Nebraska":"NE-SC","Valley||Nebraska":"NE-SC","Greeley||Nebraska":"NE-SC",
+  "Scotts Bluff||Nebraska":"NE-W","Dawes||Nebraska":"NE-W","Box Butte||Nebraska":"NE-W","Sioux||Nebraska":"NE-W","Sheridan||Nebraska":"NE-W","Cherry||Nebraska":"NE-W","Brown||Nebraska":"NE-W","Keya Paha||Nebraska":"NE-W","Rock||Nebraska":"NE-W","Holt||Nebraska":"NE-W","Boyd||Nebraska":"NE-W","Knox||Nebraska":"NE-W","Thomas||Nebraska":"NE-W","Logan||Nebraska":"NE-W","McPherson||Nebraska":"NE-W","Grant||Nebraska":"NE-W","Hooker||Nebraska":"NE-W","Arthur||Nebraska":"NE-W","Keith||Nebraska":"NE-W","Deuel||Nebraska":"NE-W","Garden||Nebraska":"NE-W","Morrill||Nebraska":"NE-W","Banner||Nebraska":"NE-W","Kimball||Nebraska":"NE-W","Cheyenne||Nebraska":"NE-W","Lincoln||Nebraska":"NE-W",
+  "Bernalillo||New Mexico":"NM-NC","Santa Fe||New Mexico":"NM-NC","Taos||New Mexico":"NM-NC","Rio Arriba||New Mexico":"NM-NC","Mora||New Mexico":"NM-NC","Colfax||New Mexico":"NM-NC","Union||New Mexico":"NM-NC","Harding||New Mexico":"NM-NC","San Miguel||New Mexico":"NM-NC","Torrance||New Mexico":"NM-NC","Guadalupe||New Mexico":"NM-NC","Quay||New Mexico":"NM-NC","De Baca||New Mexico":"NM-NC","Curry||New Mexico":"NM-NC","Roosevelt||New Mexico":"NM-NC","Lea||New Mexico":"NM-NC","Chaves||New Mexico":"NM-NC","Eddy||New Mexico":"NM-NC","Lincoln||New Mexico":"NM-NC","Otero||New Mexico":"NM-NC","Socorro||New Mexico":"NM-NC","Sierra||New Mexico":"NM-NC","Catron||New Mexico":"NM-NC","Grant||New Mexico":"NM-NC","Hidalgo||New Mexico":"NM-NC","Luna||New Mexico":"NM-NC","Doña Ana||New Mexico":"NM-NC",
+  "Sandoval||New Mexico":"NM-RR","Valencia||New Mexico":"NM-RR","Cibola||New Mexico":"NM-RR","McKinley||New Mexico":"NM-RR",
+  "Sedgwick||Kansas":"KS-C","Harvey||Kansas":"KS-C","Reno||Kansas":"KS-C","McPherson||Kansas":"KS-C","Marion||Kansas":"KS-C","Butler||Kansas":"KS-C","Cowley||Kansas":"KS-C","Sumner||Kansas":"KS-C","Kingman||Kansas":"KS-C","Pratt||Kansas":"KS-C","Stafford||Kansas":"KS-C","Rice||Kansas":"KS-C","Saline||Kansas":"KS-C","Ottawa||Kansas":"KS-C","Dickinson||Kansas":"KS-C","Ellsworth||Kansas":"KS-C","Lincoln||Kansas":"KS-C","Mitchell||Kansas":"KS-C","Republic||Kansas":"KS-C","Cloud||Kansas":"KS-C","Jewell||Kansas":"KS-C","Smith||Kansas":"KS-C","Osborne||Kansas":"KS-C","Russell||Kansas":"KS-C","Ellis||Kansas":"KS-C","Barton||Kansas":"KS-C","Pawnee||Kansas":"KS-C","Edwards||Kansas":"KS-C","Kiowa||Kansas":"KS-C","Clark||Kansas":"KS-C","Ford||Kansas":"KS-C","Meade||Kansas":"KS-C","Seward||Kansas":"KS-C","Comanche||Kansas":"KS-C","Barber||Kansas":"KS-C","Harper||Kansas":"KS-C","Grant||Kansas":"KS-C","Haskell||Kansas":"KS-C","Gray||Kansas":"KS-C","Finney||Kansas":"KS-C","Kearny||Kansas":"KS-C","Hamilton||Kansas":"KS-C","Stanton||Kansas":"KS-C","Morton||Kansas":"KS-C","Stevens||Kansas":"KS-C",
+};
+
+// ── GLOBALS ───────────────────────────────────────────────────────────────────
+let currentState = null, currentNERegion = 'all';
+let stateFeats = null, projBase, pathBase, svg;
+let regionCountyFeats = [], regionCentroidsRaw = {};
+const tip = document.getElementById('tooltip');
+const provTip = document.getElementById('prov-tooltip');
+
+// ── V4 EXACT SIDEBAR BUILD ────────────────────────────────────────────────────
+function buildOverviewSidebar() {
+  document.getElementById('state-stats').style.display = 'none';
+  document.getElementById('sb-title').textContent = 'Ranked by Pop:Hospice Ratio';
+  document.getElementById('sb-sub').textContent   = 'Most underserved (highest ratio) first ↓';
+  const ll = document.getElementById('legend-list');
+  ll.innerHTML = '';
+  const sorted = [...regions].sort((a,b) => b.ratio - a.ratio);
+  sorted.forEach((r,i) => {
+    const row = document.createElement('div');
+    row.className = 'legend-row'; row.id = 'leg-' + r.id;
+    row.innerHTML = `<span class="leg-num">${i+1}</span>
+      <span class="leg-swatch" style="background:${ratioColor(r.ratio)}"></span>
+      <div class="leg-info">
+        <div class="leg-name">${r.name}</div>
+        <div class="leg-detail">${fmt(r.pop)} pop / ${r.hospices} hospices = ${fmt(r.ratio)}:1</div>
+      </div>`;
+    row.addEventListener('mouseenter', () => highlightRegion(r.id));
+    row.addEventListener('mouseleave', clearHighlight);
+    ll.appendChild(row);
+  });
+}
+
+function buildStateSidebar(abbr) {
+  const cfg = STATE_CFG[abbr];
+  document.getElementById('sb-title').textContent = cfg.name + ' — Providers';
+  document.getElementById('sb-sub').textContent   = PROVIDERS.filter(p=>p.state===abbr).length + ' active providers';
+  document.getElementById('state-stats').style.display = 'block';
+  document.getElementById('ss-name').textContent = cfg.name;
+  const neTog = document.getElementById('ne-toggle');
+  if (abbr === 'NE') {
+    neTog.style.display = 'flex';
+    currentNERegion = 'all';
+    document.querySelectorAll('.region-btn').forEach(b => b.classList.toggle('active', b.dataset.region==='all'));
+  } else {
+    neTog.style.display = 'none';
+  }
+  updateStateStats(abbr);
+}
+
+function updateStateStats(abbr) {
+  const cfg = STATE_CFG[abbr];
+  let pop, pct65, popLabel, provs;
+  if (abbr==='NE' && currentNERegion!=='all') {
+    const sub = NE_SUB[currentNERegion];
+    pop=sub.pop; pct65=sub.pct65; popLabel=sub.label;
+    provs = PROVIDERS.filter(p => p.state==='NE' && neSubKey(p.city)===currentNERegion);
+  } else {
+    pop=cfg.pop; pct65=cfg.pct65; popLabel=cfg.popLabel;
+    provs = PROVIDERS.filter(p => p.state===abbr);
+  }
+  document.getElementById('ss-pop').textContent    = fmt(pop);
+  document.getElementById('ss-pop-lbl').textContent = popLabel;
+  document.getElementById('ss-pct65').textContent  = pct65.toFixed(1)+'%  (~'+fmt(Math.round(pop*pct65/100))+')';
+  document.getElementById('ss-count').textContent  = provs.length;
+  const ratio = provs.length ? Math.round(pop / provs.length) : 0;
+  const rv = document.getElementById('ss-ratio');
+  rv.textContent = fmt(ratio);
+  rv.style.color = ratioColor(Math.min(maxR, Math.max(minR, ratio)));
+
+  // Provider list
+  const ll = document.getElementById('legend-list');
+  ll.innerHTML = '';
+  [...provs].sort((a,b)=>a.name.localeCompare(b.name)).forEach(p => {
+    const idx = PROVIDERS.indexOf(p);
+    const col = dotColor(p.hh, p.pc);
+    const row = document.createElement('div');
+    row.className='prov-row'; row.id='prow-'+idx;
+    row.innerHTML=`<div class="prov-dot-sm" style="background:${col}"></div>
+      <div><div class="prov-name">${p.name}</div><div class="prov-city">${p.city}</div></div>`;
+    row.addEventListener('mouseenter',()=>{
+      row.classList.add('active');
+      const d=document.getElementById('dot-'+idx);
+      if(d) d3.select(d).select('circle.main').attr('r',9).attr('opacity',0.7);
+    });
+    row.addEventListener('mouseleave',()=>{
+      row.classList.remove('active');
+      const d=document.getElementById('dot-'+idx);
+      const inReg=(currentNERegion==='all')||(abbr!=='NE')||(neSubKey(p.city)===currentNERegion);
+      if(d) d3.select(d).select('circle.main').attr('r',6).attr('opacity',inReg?0.9:0.18);
+    });
+    ll.appendChild(row);
+  });
+
+  // Dim dots not in sub-region
+  d3.selectAll('.provider-dot').each(function(){
+    const idx=parseInt(this.id.replace('dot-',''));
+    const p=PROVIDERS[idx];
+    if(!p) return;
+    const inReg=(currentNERegion==='all')||(abbr!=='NE')||(neSubKey(p.city)===currentNERegion);
+    d3.select(this).select('circle.main').attr('opacity',inReg?0.9:0.18);
+  });
+}
+
+function setNERegion(reg){
+  currentNERegion=reg;
+  document.querySelectorAll('.region-btn').forEach(b=>b.classList.toggle('active',b.dataset.region===reg));
+  updateStateStats('NE');
+}
+
+// ── V4 EXACT HIGHLIGHT ────────────────────────────────────────────────────────
+function highlightRegion(id){
+  d3.selectAll('.region-path').each(function(d){
+    const el=d3.select(this);
+    el.classed('highlighted',d.rid===id).classed('dimmed',d.rid!==id);
+  });
+  document.querySelectorAll('.legend-row').forEach(el=>el.classList.remove('active'));
+  const leg=document.getElementById('leg-'+id);
+  if(leg){leg.classList.add('active');leg.scrollIntoView({block:'nearest',behavior:'smooth'});}
+}
+function clearHighlight(){
+  if(currentState) return;
+  d3.selectAll('.region-path').classed('dimmed',false).classed('highlighted',false);
+  document.querySelectorAll('.legend-row').forEach(el=>el.classList.remove('active'));
+  tip.style.display='none';
+}
+
+// ── SCALE BAR (v4 exact) ─────────────────────────────────────────────────────
+const sr=document.getElementById('scale-row');
+for(let i=0;i<24;i++){
+  const v=minR+(i/23)*(maxR-minR);
+  const seg=document.createElement('div');seg.className='sc-seg';
+  seg.style.background=ratioColor(v);sr.appendChild(seg);
+}
+
+// ── D3 MAIN ───────────────────────────────────────────────────────────────────
+d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json').then(us=>{
+  projBase=d3.geoAlbersUsa().scale(1060).translate([480,290]);
+  pathBase=d3.geoPath().projection(projBase);
+  stateFeats=topojson.feature(us,us.objects.states).features;
+  const countyFeats=topojson.feature(us,us.objects.counties).features;
+  svg=d3.select('#map');
+
+  const stateById2={};
+  stateFeats.forEach(f=>stateById2[String(f.id).padStart(2,'0')]=f.properties.name);
+
+  // Background (v4)
+  svg.append('g').selectAll('path').data(stateFeats).join('path')
+    .attr('class','bg-state').attr('d',pathBase);
+
+  // County regions (v4 exact)
+  const regG=svg.append('g').attr('id','reg-group');
+  const rnumG=svg.append('g').attr('id','rnum-group');
+  const centroids={};
+
+  countyFeats.forEach(f=>{
+    const fips=String(f.id).padStart(5,'0');
+    const sName=stateById2[fips.slice(0,2)];
+    const cName=(f.properties.name||'').replace(/ County$/,'').replace(/ Parish$/,'').replace(/ Borough$/,'').replace(/ Census Area$/,'').replace(/ City and Borough$/,'').replace(/ Municipality$/,'');
+    const rid=countyMap[cName+'||'+sName];
+    if(!rid) return;
+    const r=regionById[rid];
+    if(!r) return;
+
+    regG.append('path').datum({rid})
+      .attr('class','region-path')
+      .attr('d',pathBase(f))
+      .attr('fill',ratioColor(r.ratio))
+      .on('mousemove',function(event){
+        if(currentState) return;
+        tip.style.display='block';
+        tip.style.left=Math.min(event.clientX+16,window.innerWidth-255)+'px';
+        tip.style.top=Math.max(event.clientY-115,8)+'px';
+        document.getElementById('tt-name').textContent=r.name;
+        document.getElementById('tt-state').textContent=r.state;
+        document.getElementById('tt-num').textContent='Region #'+r.num;
+        document.getElementById('tt-pop').textContent=fmt(r.pop);
+        document.getElementById('tt-elder').textContent=fmt(r.elder);
+        document.getElementById('tt-pct').textContent=r.elderPct+'%';
+        document.getElementById('tt-hosp').textContent='~'+r.hospices+' providers';
+        const rv=document.getElementById('tt-ratio');
+        rv.textContent=fmt(r.ratio)+' people per provider';
+        rv.style.color=ratioColor(r.ratio);
+        document.getElementById('tt-towns').textContent='📍 '+r.towns;
+        highlightRegion(rid);
+      })
+      .on('mouseleave',clearHighlight);
+
+    if(!centroids[rid]) centroids[rid]=[];
+    const c=pathBase.centroid(f);
+    if(!isNaN(c[0])) centroids[rid].push(c);
+    regionCountyFeats.push({feature:f,rid});
+    if(!regionCentroidsRaw[rid]) regionCentroidsRaw[rid]=[];
+    regionCentroidsRaw[rid].push(f);
+  });
+
+  // Number badges (v4 exact)
+  Object.entries(centroids).forEach(([rid,pts])=>{
+    if(!pts.length) return;
+    const r=regionById[rid];
+    const cx=pts.reduce((s,c)=>s+c[0],0)/pts.length;
+    const cy=pts.reduce((s,c)=>s+c[1],0)/pts.length;
+    rnumG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9.5)
+      .attr('fill','rgba(15,25,35,0.78)').attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',0.8).attr('pointer-events','none');
+    rnumG.append('text').attr('x',cx).attr('y',cy).attr('class','rnum-txt').text(r?r.num:'');
+  });
+
+  // Focus outlines (v4)
+  svg.append('g').selectAll('path')
+    .data(stateFeats.filter(f=>focusStates.has(f.properties.name)))
+    .join('path').attr('class','focus-outline').attr('d',pathBase);
+
+  // Invisible click targets for 4 drill states
+  svg.append('g').attr('id','drill-states').selectAll('path')
+    .data(stateFeats.filter(f=>DRILL_STATES.has(f.properties.name)))
+    .join('path').attr('class','focus-state').attr('d',pathBase)
+    .on('click',(event,d)=>{
+      const abbr=stateAbbrs[d.properties.name];
+      if(abbr && !currentState) zoomTo(abbr);
+    });
+
+  // State labels (v4 exact)
+  svg.append('g').selectAll('text').data(stateFeats).join('text')
+    .attr('class','state-label')
+    .attr('x',d=>pathBase.centroid(d)[0])
+    .attr('y',d=>pathBase.centroid(d)[1])
+    .text(d=>stateAbbrs[d.properties.name]||'');
+
+  // Click hints on drill states
+  svg.append('g').attr('id','hint-g').selectAll('text')
+    .data(stateFeats.filter(f=>DRILL_STATES.has(f.properties.name)))
+    .join('text').attr('class','click-hint')
+    .attr('x',d=>pathBase.centroid(d)[0])
+    .attr('y',d=>pathBase.centroid(d)[1]+10)
+    .text('click to explore');
+
+  svg.append('g').attr('id','dot-layer');
+  buildOverviewSidebar();
+});
+
+// ── ZOOM ──────────────────────────────────────────────────────────────────────
+function zoomTo(abbr){
+  currentState=abbr; currentNERegion='all';
+  document.getElementById('state-prompt').style.opacity='0';
+  document.getElementById('back-btn').style.display='flex';
+  document.getElementById('state-title').textContent='· '+STATE_CFG[abbr].name;
+
+  const cfg=STATE_CFG[abbr];
+  const proj=d3.geoAlbersUsa().scale(cfg.scale).translate([480,290]);
+  const path=d3.geoPath().projection(proj);
+  const feats=stateFeats.filter(f=>cfg.states.includes(f.properties.name));
+  const [[x0,y0],[x1,y1]]=path.bounds({type:'FeatureCollection',features:feats});
+  const pad=cfg.pad;
+  svg.transition().duration(700).attr('viewBox',`${x0-pad} ${y0-pad} ${x1-x0+pad*2} ${y1-y0+pad*2}`);
+
+  // Redraw region counties with new projection, dim to 50%
+  svg.select('#reg-group').selectAll('path').data(regionCountyFeats)
+    .transition().duration(700).attr('d',d=>path(d.feature));
+  svg.select('#reg-group').style('pointer-events','none')
+    .transition().duration(400).style('opacity',0.5);
+
+  // Redraw badges
+  const rnumG=svg.select('#rnum-group');
+  rnumG.selectAll('*').remove();
+  Object.entries(regionCentroidsRaw).forEach(([rid,feats])=>{
+    const r=regionById[rid];
+    const pts=feats.map(f=>path.centroid(f)).filter(c=>!isNaN(c[0]));
+    if(!pts.length) return;
+    const cx=pts.reduce((s,c)=>s+c[0],0)/pts.length;
+    const cy=pts.reduce((s,c)=>s+c[1],0)/pts.length;
+    rnumG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9.5)
+      .attr('fill','rgba(15,25,35,0.78)').attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',0.8).attr('pointer-events','none');
+    rnumG.append('text').attr('x',cx).attr('y',cy).attr('class','rnum-txt').text(r?r.num:'');
+  });
+
+  // Redraw all state geometry
+  svg.selectAll('.bg-state').transition().duration(700).attr('d',path);
+  svg.selectAll('.focus-outline').transition().duration(700).attr('d',path);
+  svg.select('#drill-states').selectAll('path').transition().duration(700).attr('d',path);
+  svg.selectAll('.state-label').transition().duration(700)
+    .attr('x',d=>{const c=path.centroid(d);return isNaN(c[0])?0:c[0];})
+    .attr('y',d=>{const c=path.centroid(d);return isNaN(c[1])?0:c[1];});
+  svg.select('#hint-g').selectAll('text').transition().duration(700)
+    .attr('x',d=>{const c=path.centroid(d);return isNaN(c[0])?0:c[0];})
+    .attr('y',d=>{const c=path.centroid(d);return isNaN(c[1])?0:c[1]+10;});
+
+  setTimeout(()=>drawDots(abbr,proj),720);
+  buildStateSidebar(abbr);
+}
+
+// ── DOTS ─────────────────────────────────────────────────────────────────────
+function drawDots(abbr,proj){
+  svg.select('#dot-layer').selectAll('*').remove();
+  PROVIDERS.filter(p=>p.state===abbr).forEach(p=>{
+    const xy=proj([p.lng,p.lat]);
+    if(!xy||isNaN(xy[0])) return;
+    const idx=PROVIDERS.indexOf(p);
+    const col=dotColor(p.hh,p.pc);
+    const g=svg.select('#dot-layer').append('g')
+      .attr('class','provider-dot').attr('id','dot-'+idx)
+      .attr('transform',`translate(${xy[0]},${xy[1]})`);
+    g.append('circle').attr('r',7).attr('fill','rgba(0,0,0,0.38)').attr('transform','translate(1,1.5)');
+    g.append('circle').attr('r',6).attr('class','main').attr('fill',col).attr('opacity',0.9);
+    g.append('circle').attr('r',2).attr('fill','rgba(255,255,255,0.22)').attr('transform','translate(-1.5,-1.5)').attr('pointer-events','none');
+    g.on('mousemove',function(event){
+      provTip.style.display='block';
+      provTip.style.left=Math.min(event.clientX+16,window.innerWidth-270)+'px';
+      provTip.style.top=Math.max(event.clientY-80,8)+'px';
+      document.getElementById('pt-name').textContent=p.name;
+      document.getElementById('pt-addr').textContent=p.addr;
+      document.getElementById('pt-city').textContent=p.city+', '+p.state;
+      document.querySelectorAll('.prov-row').forEach(el=>el.classList.remove('active'));
+      const row=document.getElementById('prow-'+idx);
+      if(row){row.classList.add('active');row.scrollIntoView({block:'nearest',behavior:'smooth'});}
+    }).on('mouseleave',()=>{
+      provTip.style.display='none';
+      document.querySelectorAll('.prov-row').forEach(el=>el.classList.remove('active'));
+    });
+  });
+}
+
+// ── GO BACK ───────────────────────────────────────────────────────────────────
+function goBack(){
+  currentState=null;
+  tip.style.display='none'; provTip.style.display='none';
+  document.getElementById('state-prompt').style.opacity='1';
+  document.getElementById('back-btn').style.display='none';
+  document.getElementById('state-title').textContent='';
+  svg.transition().duration(600).attr('viewBox','0 0 960 580');
+
+  svg.select('#reg-group').selectAll('path').data(regionCountyFeats)
+    .transition().duration(600).attr('d',d=>pathBase(d.feature));
+  svg.select('#reg-group').style('pointer-events','auto')
+    .transition().duration(600).style('opacity',1);
+
+  const rnumG=svg.select('#rnum-group');
+  rnumG.selectAll('*').remove();
+  Object.entries(regionCentroidsRaw).forEach(([rid,feats])=>{
+    const r=regionById[rid];
+    const pts=feats.map(f=>pathBase.centroid(f)).filter(c=>!isNaN(c[0]));
+    if(!pts.length) return;
+    const cx=pts.reduce((s,c)=>s+c[0],0)/pts.length;
+    const cy=pts.reduce((s,c)=>s+c[1],0)/pts.length;
+    rnumG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9.5)
+      .attr('fill','rgba(15,25,35,0.78)').attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',0.8).attr('pointer-events','none');
+    rnumG.append('text').attr('x',cx).attr('y',cy).attr('class','rnum-txt').text(r?r.num:'');
+  });
+
+  svg.selectAll('.bg-state').transition().duration(600).attr('d',pathBase);
+  svg.selectAll('.focus-outline').transition().duration(600).attr('d',pathBase);
+  svg.select('#drill-states').selectAll('path').transition().duration(600).attr('d',pathBase);
+  svg.selectAll('.state-label').transition().duration(600)
+    .attr('x',d=>{const c=pathBase.centroid(d);return isNaN(c[0])?0:c[0];})
+    .attr('y',d=>{const c=pathBase.centroid(d);return isNaN(c[1])?0:c[1];});
+  svg.select('#hint-g').selectAll('text').transition().duration(600)
+    .attr('x',d=>{const c=pathBase.centroid(d);return isNaN(c[0])?0:c[0];})
+    .attr('y',d=>{const c=pathBase.centroid(d);return isNaN(c[1])?0:c[1]+10;});
+
+  svg.select('#dot-layer').selectAll('*').remove();
+  buildOverviewSidebar();
+}
+</script>
+</body>
+</html>
