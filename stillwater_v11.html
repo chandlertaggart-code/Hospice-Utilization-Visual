@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; background: #0f1923; color: #ccdde8; }
+  #wrap { display: flex; flex-direction: column; height: 100vh; min-height: 560px; position: relative; }
+
+  #header { padding: 10px 18px 8px; background: #0f1923; border-bottom: 1px solid #1e3448; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  #header h1 { font-size: 13px; font-weight: 700; color: #a8cfe0; letter-spacing: 0.4px; }
+  #header p  { font-size: 9.5px; color: #4a7090; margin-top: 2px; }
+  #back-btn  { display: none; align-items: center; gap: 6px; background: #1a3048; border: 1px solid #2a5070; border-radius: 4px; color: #7ab8d4; font-size: 10px; font-family: Georgia, serif; cursor: pointer; padding: 5px 10px; transition: background 0.15s; flex-shrink: 0; }
+  #back-btn:hover { background: #234060; }
+  #back-btn svg { width: 12px; height: 12px; fill: none; stroke: #7ab8d4; stroke-width: 2; }
+  #state-title { color: #5ad090; }
+
+  #body { display: flex; flex: 1; overflow: hidden; }
+  #map-wrap { flex: 1; position: relative; min-width: 0; overflow: hidden; }
+  svg { width: 100%; height: 100%; }
+
+  /* Map — v4 exact */
+  .bg-state      { fill: #1a2e40; stroke: #0f1923; stroke-width: 0.8; }
+  .region-path   { stroke: #0f1923; stroke-width: 0.7; cursor: pointer; transition: opacity 0.2s, filter 0.2s; }
+  .region-path.dimmed      { opacity: 0.1; filter: grayscale(1) brightness(0.3); }
+  .region-path.highlighted { opacity: 1; filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,255,255,0.18)); }
+  .focus-outline { fill: none; stroke: #3a6a88; stroke-width: 1.4; pointer-events: none; }
+  .focus-state   { fill: transparent; stroke: none; cursor: pointer; }
+  .state-label   { font-size: 6.5px; fill: rgba(100,150,180,0.45); text-anchor: middle; dominant-baseline: central; pointer-events: none; font-weight: 700; letter-spacing: 0.4px; }
+  .rnum-txt      { pointer-events: none; font-family: Georgia, serif; font-weight: 700; font-size: 7.5px; fill: rgba(255,255,255,0.95); text-anchor: middle; dominant-baseline: central; }
+  .click-hint    { font-size: 7px; fill: rgba(90,208,144,0.6); text-anchor: middle; pointer-events: none; font-family: Georgia, serif; }
+
+  /* Provider dots */
+  .provider-dot { cursor: pointer; }
+  .provider-dot circle.main { transition: opacity 0.15s, r 0.15s; }
+
+  /* Sidebar — v4 exact */
+  #sidebar { width: 202px; flex-shrink: 0; background: #0d1720; border-left: 1px solid #1e3448; overflow-y: auto; display: flex; flex-direction: column; }
+  #sidebar-top { padding: 8px 10px 6px; border-bottom: 1px solid #1e3448; background: #101d2b; flex-shrink: 0; }
+  #sidebar-top h2 { font-size: 9px; font-weight: 700; color: #88b8cc; text-transform: uppercase; letter-spacing: 0.8px; }
+  #sidebar-top p  { font-size: 8px; color: #4a7090; margin-top: 2px; }
+  #legend-list { flex: 1; overflow-y: auto; }
+
+  /* Region ranked rows — v4 exact */
+  .legend-row { display: flex; align-items: center; gap: 5px; padding: 4px 7px; cursor: pointer; border-bottom: 1px solid #1a2e40; transition: background 0.1s; }
+  .legend-row:hover, .legend-row.active { background: #162a1a; }
+  .leg-num    { font-size: 9px; color: #4a7090; min-width: 14px; text-align: right; flex-shrink: 0; }
+  .leg-swatch { width: 20px; height: 13px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.08); }
+  .sec-header { font-size: 8px; font-weight: 700; color: #4a8090; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 7px 3px; background: #0c1820; border-bottom: 1px solid #1e3448; position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .sec-header:hover { background: #0f2030; }
+  .sec-arrow { font-size: 9px; color: #4a8090; transition: transform 0.2s; flex-shrink: 0; }
+  .sec-arrow.collapsed { transform: rotate(-90deg); }
+  .sec-body { overflow: hidden; transition: max-height 0.25s ease; }
+  .state-rank-row { display: flex; align-items: center; gap: 5px; padding: 3px 7px; border-bottom: 1px solid #1a2e40; }
+  .sr-num  { font-size: 8px; color: #4a7090; min-width: 14px; text-align: right; flex-shrink: 0; }
+  .sr-abbr { font-size: 9px; color: #b8d4e0; font-weight: 700; min-width: 22px; flex-shrink: 0; }
+  .sr-name { font-size: 8px; color: #7aa8b8; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sr-ratio{ font-size: 9px; font-weight: 700; flex-shrink: 0; text-align: right; min-width: 52px; }
+  .leg-info   { flex: 1; min-width: 0; }
+  .leg-name   { font-size: 9px; color: #b8d4e0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .leg-detail { font-size: 7.5px; color: #4a8a5a; }
+
+  /* State stats panel */
+  #state-stats { display: none; padding: 7px 10px 5px; border-bottom: 1px solid #1e3448; flex-shrink: 0; background: #0f1d2b; }
+  #state-stats h3 { font-size: 9px; font-weight: 700; color: #5ad090; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 5px; }
+  .stat-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  .stat-lbl { font-size: 8px; color: #4a7090; }
+  .stat-val { font-size: 8px; font-weight: 700; color: #b8d4e0; }
+  .stat-ratio { font-size: 9px; font-weight: 700; }
+
+  /* NE region toggle */
+  #ne-toggle { display: none; gap: 4px; margin-bottom: 6px; }
+  .region-btn { flex: 1; background: #152235; border: 1px solid #2a4860; border-radius: 4px; color: #7a9aaa; font-size: 7.5px; font-family: Georgia, serif; cursor: pointer; padding: 4px 2px; transition: all 0.15s; }
+  .region-btn:hover { background: #1c3048; color: #b8d4e0; }
+  .region-btn.active { background: #1e4030; border-color: #2e6048; color: #5ad090; font-weight: 700; }
+
+  /* Provider list */
+  .prov-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-bottom: 1px solid #182a3a; cursor: pointer; transition: background 0.1s; }
+  .prov-row:hover, .prov-row.active { background: #152235; }
+  .prov-dot-sm { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .prov-name   { font-size: 8.5px; color: #b8d4e0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prov-name.multi { color: #a8c4d0; font-style: italic; }
+  .prov-multi-badge { font-size: 6.5px; color: #4a7a60; background: #0f2a1a; border: 1px solid #1e4a30; border-radius: 2px; padding: 0 3px; margin-left: 3px; flex-shrink: 0; white-space: nowrap; }
+  .prov-city   { font-size: 7.5px; color: #4a7090; margin-top: 1px; }
+
+  /* Scale bar — v4 exact */
+  #scale-wrap { padding: 9px 10px; border-top: 1px solid #1e3448; background: #101d2b; flex-shrink: 0; }
+  #scale-wrap p { font-size: 8px; color: #4a7090; margin-bottom: 5px; }
+  #scale-row { display: flex; height: 14px; border-radius: 3px; overflow: hidden; }
+  .sc-seg { flex: 1; }
+  #scale-labels { display: flex; justify-content: space-between; margin-top: 4px; align-items: flex-start; }
+
+  /* Provider list section header in sidebar */
+  .prov-section-hdr { padding: 5px 8px 3px; background: #0f1d2b; border-bottom: 1px solid #1e3448; }
+  .prov-section-hdr span { font-size: 8px; font-weight: 700; color: #88b8cc; text-transform: uppercase; letter-spacing: 0.6px; }
+
+  /* Tooltips */
+  #tooltip { position: fixed; background: #0d1720; border: 1px solid #2a6040; border-radius: 8px; padding: 10px 13px; pointer-events: none; display: none; z-index: 999; max-width: 245px; box-shadow: 0 4px 22px rgba(0,0,0,0.6); font-family: Georgia, serif; }
+  #tooltip h3 { font-size: 11.5px; color: #5ad090; margin-bottom: 6px; font-weight: 700; border-bottom: 1px solid #1e3a28; padding-bottom: 4px; }
+  .tt-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .tt-lbl { color: #4a7090; font-size: 9.5px; }
+  .tt-val { color: #b8d4e0; font-weight: 700; font-size: 9.5px; }
+  .tt-ratio-val { font-weight: 700; font-size: 10.5px; }
+  .tt-towns { font-size: 8.5px; color: #5a8a6a; margin-top: 5px; padding-top: 4px; border-top: 1px solid #1e3a28; line-height: 1.5; }
+
+  #prov-tooltip { position: fixed; background: #0a1520; border: 1px solid #1e5038; border-radius: 8px; padding: 10px 13px; pointer-events: none; display: none; z-index: 1000; max-width: 255px; box-shadow: 0 6px 24px rgba(0,0,0,0.7); font-family: Georgia, serif; }
+  #prov-tooltip h3 { font-size: 11px; color: #5ad090; margin-bottom: 6px; font-weight: 700; border-bottom: 1px solid #1a3828; padding-bottom: 4px; line-height: 1.4; }
+  .pt-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .pt-lbl { color: #4a7090; font-size: 9px; }
+  .pt-val { color: #b8d4e0; font-weight: 700; font-size: 9px; text-align: right; }
+
+  #state-prompt { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,21,32,0.82); border: 1px solid #1e3448; border-radius: 20px; padding: 5px 14px; font-size: 9px; color: #4a8090; pointer-events: none; transition: opacity 0.4s; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="back-btn" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        All States
+      </button>
+      <div>
+        <h1>Stillwater Hospice &nbsp;&middot;&nbsp; Market Analysis &nbsp;&middot;&nbsp; 8 States &middot; 23 Regions &nbsp;<span id="state-title"></span></h1>
+        <p id="header-sub">2024 Census &amp; CMS provider data and Internet Research</p>
+      </div>
+    </div>
+  </div>
+  <div id="body">
+    <div id="map-wrap">
+      <div id="state-prompt">&darr; Click any highlighted state to explore providers</div>
+      <!-- Region tooltip (v4 exact) -->
+      <div id="tooltip">
+        <h3 id="tt-name"></h3>
+        <div class="tt-row"><span class="tt-lbl">State</span><span class="tt-val" id="tt-state"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Region #</span><span class="tt-val" id="tt-num"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Total Pop (2024)</span><span class="tt-val" id="tt-pop"></span></div>
+        <div class="tt-row"><span class="tt-lbl">65+ Population</span><span class="tt-val" id="tt-elder"></span></div>
+        <div class="tt-row"><span class="tt-lbl">65+ Rate</span><span class="tt-val" id="tt-pct"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Est. Hospice Providers</span><span class="tt-val" id="tt-hosp"></span></div>
+        <div class="tt-row"><span class="tt-lbl">Total Pop per Provider</span><span class="tt-ratio-val" id="tt-ratio"></span></div>
+        <div class="tt-towns" id="tt-towns"></div>
+      </div>
+      <!-- Provider tooltip -->
+      <div id="prov-tooltip">
+        <h3 id="pt-name"></h3>
+        <div class="pt-row"><span class="pt-lbl">Address</span><span class="pt-val" id="pt-addr"></span></div>
+        <div class="pt-row"><span class="pt-lbl">City / State</span><span class="pt-val" id="pt-city"></span></div>
+      </div>
+      <svg id="map" viewBox="0 0 960 580" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div id="sidebar">
+      <div id="sidebar-top">
+        <h2 id="sb-title">Focus State Overview</h2>
+        <p id="sb-sub">State ratios · Region ratios</p>
+      </div>
+      <!-- State stats (shown when zoomed in) -->
+      <div id="state-stats">
+        <h3 id="ss-name">—</h3>
+        <div id="ne-toggle">
+          <button class="region-btn active" data-region="all" onclick="setNERegion('all')">Statewide</button>
+          <button class="region-btn" data-region="metro" onclick="setNERegion('metro')">Eastern Metro</button>
+          <button class="region-btn" data-region="plains" onclick="setNERegion('plains')">Central/West</button>
+        </div>
+        <div class="stat-row"><span class="stat-lbl">Population</span><span class="stat-val" id="ss-pop">—</span></div>
+        <div class="stat-row"><span class="stat-lbl" id="ss-pop-lbl" style="font-style:italic;color:#3a5a78;font-size:7px"></span></div>
+        <div class="stat-row"><span class="stat-lbl">65+ Population</span><span class="stat-val" id="ss-pct65">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Active Providers</span><span class="stat-val" id="ss-count">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Pop per Provider</span><span class="stat-val stat-ratio" id="ss-ratio">—</span></div>
+      </div>
+      <div id="legend-list"></div>
+      <div id="scale-wrap">
+        <p>Total population per hospice provider</p>
+        <div id="scale-row"></div>
+        <div id="scale-labels">
+          <span style="font-size:7.5px;color:#d44020;">Low ratio</span>
+          <span style="font-size:7.5px;color:#c8a820;">Moderate</span>
+          <span style="text-align:right"><span style="font-size:7.5px;color:#28a048;display:block;">High ratio</span><span style="font-size:7px;color:#28a048;opacity:0.7;display:block;">Underserved</span></span>
+        </div>
+        <div id="dot-legend" style="display:block;margin-top:7px;border-top:1px solid #1e3448;padding-top:5px;">
+          <p style="margin-bottom:3px;">Provider dot colors</p>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:9px;height:9px;border-radius:50%;background:#c8d8e8;flex-shrink:0"></div><span style="font-size:7px;color:#4a7090;">Hospice only</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:9px;height:9px;border-radius:50%;background:#5aa0d0;flex-shrink:0"></div><span style="font-size:7px;color:#4a7090;">+ Home Health</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:9px;height:9px;border-radius:50%;background:#c8a820;flex-shrink:0"></div><span style="font-size:7px;color:#4a7090;">+ Palliative Care</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:9px;height:9px;border-radius:50%;background:#28a048;flex-shrink:0"></div><span style="font-size:7px;color:#4a7090;">+ HH &amp; Palliative</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:9px;height:9px;border-radius:50%;background:#e8922a;flex-shrink:0"></div><span style="font-size:7px;color:#4a7090;">⚠ AI-sourced / unverified</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:9px;height:9px;border-radius:50%;background:#c8d8e8;outline:1px dashed rgba(255,255,255,0.5);flex-shrink:0"></div><span style="font-size:7px;color:#4a7090;">↔ Multi-location company</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><span style="font-size:11px;color:#f0d060;line-height:1;flex-shrink:0;-webkit-text-stroke:0.5px #1a5a6e">★</span><span style="font-size:7px;color:#f0d060;">Stillwater locations</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+
+// ── PROVIDERS (active rows only, no flagged) ──────────────────────────────────
+const PROVIDERS = [
+  // NORTHERN COLORADO
+  { name:"Accentcare Home Health of Mountain Valley LLC", addr:"4065 St Cloud Dr",               city:"Loveland",     state:"CO", lat:40.398, lng:-105.074, hh:true,  pc:false },
+  { name:"Alliant Palliative Care And Hospice",           addr:"12225 N Pecos St #100",          city:"Westminster",  state:"CO", lat:39.883, lng:-105.015, hh:false, pc:true  },
+  { name:"Banner Hospice of Northern Colorado",           addr:"2001 70th Avenue, Suite 100",    city:"Greeley",      state:"CO", lat:40.421, lng:-104.763, hh:false, pc:true  },
+  { name:"Bristlecone Health Services Hospice",           addr:"68 School Rd, Ste. 200",         city:"Frisco",       state:"CO", lat:39.574, lng:-106.098, hh:false, pc:false },
+  { name:"Bristol Hospice Northern Colorado",             addr:"3770 Puritan Way E",             city:"Frederick",    state:"CO", lat:40.098, lng:-104.930, hh:false, pc:true  },
+  { name:"Canyon Home Care & Hospice",                    addr:"2000 S Colorado Blvd, Ste. 110", city:"Denver",       state:"CO", lat:39.677, lng:-104.956, hh:true,  pc:true  },
+  { name:"Caring Hands Hospice",                          addr:"286 16th St",                    city:"Burlington",   state:"CO", lat:39.301, lng:-102.270, hh:false, pc:false },
+  { name:"Compassionate Hospice Care LLC",                addr:"11935 Quay St",                  city:"Broomfield",   state:"CO", lat:39.921, lng:-105.087, hh:false, pc:false },
+  { name:"Craft Hospice",                                 addr:"1650 38th Street, Suite 101E",   city:"Boulder",      state:"CO", lat:40.015, lng:-105.270, hh:true,  pc:false },
+  { name:"Dignity Hospice of Colorado LLC",               addr:"400 E 84th Ave #202",            city:"Thornton",     state:"CO", lat:39.887, lng:-104.972, hh:false, pc:false },
+  { name:"Estes Park Health Hospice",                     addr:"555 Prospect Ave",               city:"Estes Park",   state:"CO", lat:40.377, lng:-105.521, hh:false, pc:false },
+  { name:"Hospice of The Plains – Sterling",              addr:"302 N 9th Ave",                  city:"Sterling",     state:"CO", lat:40.626, lng:-103.208, hh:false, pc:false },
+  { name:"Hospice of The Plains – Wray",                  addr:"421 Main St",                    city:"Wray",         state:"CO", lat:40.076, lng:-102.221, hh:false, pc:false },
+  { name:"Lincoln Community Home Health and Hospice",     addr:"111 6th St",                     city:"Hugo",         state:"CO", lat:39.133, lng:-103.469, hh:true,  pc:false },
+  { name:"Pathways Hospice (Fort Collins)",               addr:"305 Carpenter Rd",               city:"Fort Collins", state:"CO", lat:40.548, lng:-105.065, hh:false, pc:true  },
+  { name:"Pathways Hospice (Greeley)",                    addr:"4075 W 11th St",                 city:"Greeley",      state:"CO", lat:40.409, lng:-104.791, hh:false, pc:true  },
+  { name:"Seasons Hospice & Palliative Care of Colorado", addr:"9191 Sheridan Blvd, Ste. 103",   city:"Westminster",  state:"CO", lat:39.836, lng:-105.036, hh:false, pc:true  },
+  { name:"St. Anthony Hospice",                           addr:"2551 W 84th Ave, 1st Floor",     city:"Westminster",  state:"CO", lat:39.843, lng:-105.038, hh:false, pc:false },
+  { name:"Suncrest Hospice – Loveland",                   addr:"1605 Foxtrail Dr, Ste. 200",     city:"Loveland",     state:"CO", lat:40.401, lng:-105.072, hh:true,  pc:true  },
+  { name:"The Denver Hospice North",                      addr:"5054 W 92nd Ave",                city:"Westminster",  state:"CO", lat:39.843, lng:-105.040, hh:false, pc:false },
+  { name:"Trail Winds Hospice",                           addr:"4710 Table Mesa Dr, Ste B",      city:"Boulder",      state:"CO", lat:40.008, lng:-105.265, hh:false, pc:false },
+  { name:"Tru Community Care – Longmont",                 addr:"1950 Mountain View Ave, 4th Fl", city:"Longmont",     state:"CO", lat:40.167, lng:-105.101, hh:true,  pc:true  },
+
+  // ── COLORADO (AI-sourced, unverified — needs fact-check) ─────────────────
+  // CO-SD: South Denver metro
+  { name:"Colorado Palliative & Hospice Care",             addr:"6901 S Pierce St, Ste 260",        city:"Centennial",   state:"CO", lat:39.597, lng:-105.018, hh:false, pc:false, unverified:true },
+  { name:"Optimal Hospice Care",                           addr:"4380 S Syracuse St, Ste 455",      city:"Denver",       state:"CO", lat:39.634, lng:-104.893, hh:false, pc:false, unverified:true },
+  { name:"Brighton Hospice Colorado",                      addr:"8055 E Tufts Ave, Ste 425",        city:"Denver",       state:"CO", lat:39.648, lng:-104.882, hh:false, pc:false, unverified:true },
+  { name:"Compassus – Greater Denver",                     addr:"2420 W 26th Ave, Ste 200-D",       city:"Denver",       state:"CO", lat:39.753, lng:-105.020, hh:false, pc:false, unverified:true },
+  { name:"Berkley Palliative Care and Hospice",            addr:"10697 E Dartmouth Ave",            city:"Aurora",       state:"CO", lat:39.660, lng:-104.798, hh:false, pc:false, unverified:true },
+  { name:"Lumicare Hospice",                               addr:"6200 S Syracuse Way, Ste 200",     city:"Greenwood Village", state:"CO", lat:39.617, lng:-104.887, hh:false, pc:false, unverified:true },
+  { name:"Elevation Hospice of Colorado",                  addr:"7850 Vance Dr, Ste 230",           city:"Arvada",       state:"CO", lat:39.802, lng:-105.082, hh:false, pc:false, unverified:true },
+  { name:"Bloom Hospice",                                  addr:"10900 W 44th Ave, Ste 102",        city:"Wheat Ridge",  state:"CO", lat:39.775, lng:-105.110, hh:false, pc:false, unverified:true },
+  { name:"Lutheran Medical Center Hospice",                addr:"3210 Lutheran Pkwy",               city:"Wheat Ridge",  state:"CO", lat:39.773, lng:-105.108, hh:false, pc:false, unverified:true },
+  { name:"Suncrest Hospice Denver (Greenwood Village)",    addr:"5700 S Quebec St, Ste 310",        city:"Greenwood Village", state:"CO", lat:39.617, lng:-104.887, hh:false, pc:false, unverified:true, multi:true },
+  { name:"The Denver Hospice",                             addr:"8299 E Lowry Blvd",                city:"Denver",       state:"CO", lat:39.720, lng:-104.882, hh:false, pc:false, unverified:true },
+  { name:"TruCommunity Care (Lafayette)",                  addr:"2594 Trailridge Dr E",             city:"Lafayette",    state:"CO", lat:39.993, lng:-105.082, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Agape Hospice Services",                         addr:"445 Union Blvd, Ste 223",          city:"Lakewood",     state:"CO", lat:39.714, lng:-105.088, hh:false, pc:false, unverified:true },
+  { name:"Enhabit Hospice (Denver)",                       addr:"4500 E Cherry Creek Dr S, Ste 615",city:"Denver",       state:"CO", lat:39.679, lng:-104.907, hh:true,  pc:false, unverified:true, multi:true },
+  { name:"Bristol Hospice Denver",                         addr:"4500 E Cherry Creek Dr S",         city:"Denver",       state:"CO", lat:39.679, lng:-104.908, hh:false, pc:false, unverified:true, multi:true },
+  { name:"AdventHealth Hospice Care Porter",               addr:"2525 S Downing St",                city:"Denver",       state:"CO", lat:39.685, lng:-104.970, hh:false, pc:false, unverified:true },
+  // CO-S: Colorado Springs / Pueblo / Southern
+  { name:"Pikes Peak Hospice & Palliative Care",           addr:"2550 Tenderfoot Hill St",          city:"Colorado Springs", state:"CO", lat:38.818, lng:-104.821, hh:false, pc:true,  unverified:true },
+  { name:"Compassus (Colorado Springs North)",             addr:"5475 Tech Center Dr, Ste 105",     city:"Colorado Springs", state:"CO", lat:38.904, lng:-104.793, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Compassus (Colorado Springs South)",             addr:"7660 Goddard St, Ste 100",         city:"Colorado Springs", state:"CO", lat:38.944, lng:-104.789, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Abode Hospice of Colorado (Colo Springs)",       addr:"5465 Mark Dabling Blvd, Fl 1",     city:"Colorado Springs", state:"CO", lat:38.912, lng:-104.855, hh:false, pc:false, unverified:true },
+  { name:"Colorado Palliative & Hospice Care (Colo Springs)", addr:"3605 Sinton Rd, Ste 100",      city:"Colorado Springs", state:"CO", lat:38.912, lng:-104.793, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Sangre de Cristo Hospice (Pueblo)",              addr:"1920 Valley Dr",                   city:"Pueblo",       state:"CO", lat:38.268, lng:-104.610, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Sangre de Cristo Hospice (Canon City)",          addr:"601 Greenwood Ave",                city:"Canon City",   state:"CO", lat:38.441, lng:-105.237, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Sangre de Cristo Hospice (La Junta)",            addr:"26678 Frontage Rd",                city:"La Junta",     state:"CO", lat:37.985, lng:-103.543, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Sangre de Cristo Hospice (Trinidad)",            addr:"328 Bonaventure Ave, Ste 5",       city:"Trinidad",     state:"CO", lat:37.168, lng:-104.501, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Suncrest Hospice (Pueblo)",                      addr:"1721 W US Hwy 50, Ste 200",        city:"Pueblo",       state:"CO", lat:38.265, lng:-104.640, hh:false, pc:false, unverified:true, multi:true },
+  { name:"New Century Hospice of Colorado Springs",        addr:"2304 N Nevada Ave",                city:"Pueblo",       state:"CO", lat:38.270, lng:-104.609, hh:false, pc:false, unverified:true },
+  // Western Slope
+  { name:"HopeWest (Grand Junction)",                      addr:"2754 Compass Dr, Ste 377",         city:"Grand Junction",state:"CO", lat:39.093, lng:-108.551, hh:false, pc:false, unverified:true, multi:true },
+  { name:"HopeWest (Delta)",                               addr:"195 Stafford Ln",                  city:"Delta",        state:"CO", lat:38.739, lng:-108.072, hh:false, pc:false, unverified:true, multi:true },
+  { name:"HopeWest (Montrose)",                            addr:"725 S 4th St",                     city:"Montrose",     state:"CO", lat:38.477, lng:-107.877, hh:false, pc:false, unverified:true, multi:true },
+  { name:"Gunnison Valley Health Hospice",                 addr:"711 N Taylor St",                  city:"Gunnison",     state:"CO", lat:38.546, lng:-106.926, hh:false, pc:false, unverified:true },
+  // SOUTH DAKOTA
+  { name:"AseraCare Hospice Care (Amedisys)",             addr:"6009 W 41st St, Ste. 4",         city:"Sioux Falls",  state:"SD", lat:43.508, lng:-96.770,  hh:true,  pc:true  },
+  { name:"Sanford Health Hospice House",                  addr:"1320 W 17th St",                 city:"Sioux Falls",  state:"SD", lat:43.544, lng:-96.738,  hh:false, pc:false },
+  { name:"Avera at Home – Aberdeen",                      addr:"305 S State St",                 city:"Aberdeen",     state:"SD", lat:45.464, lng:-98.486,  hh:true,  pc:true  },
+  { name:"Avera at Home – Milbank",                       addr:"301 Flynn Drive",                city:"Milbank",      state:"SD", lat:45.219, lng:-96.635,  hh:true,  pc:true  },
+  { name:"Avera at Home – Mitchell",                      addr:"1115 E 5th Ave",                 city:"Mitchell",     state:"SD", lat:43.710, lng:-98.030,  hh:true,  pc:true  },
+  { name:"Avera at Home – Pierre",                        addr:"800 East Dakota Ave",            city:"Pierre",       state:"SD", lat:44.368, lng:-100.351, hh:true,  pc:true  },
+  { name:"Avera at Home – Sioux Falls",                   addr:"800 East 21st Street",           city:"Sioux Falls",  state:"SD", lat:43.546, lng:-96.735,  hh:true,  pc:true  },
+  { name:"Avera at Home – Yankton",                       addr:"1115 West 9th St",               city:"Yankton",      state:"SD", lat:42.878, lng:-97.397,  hh:true,  pc:true  },
+  { name:"Brookings Health System Hospital Hospice",      addr:"2311 Yorkshire Dr",              city:"Brookings",    state:"SD", lat:44.311, lng:-96.798,  hh:false, pc:false },
+  { name:"Huron Regional Medical Center Hospice",         addr:"172 Fourth St SE",               city:"Huron",        state:"SD", lat:44.363, lng:-98.214,  hh:false, pc:false },
+  { name:"Prairie Lakes Hospital Hospice",                addr:"401 9th Ave NW",                 city:"Watertown",    state:"SD", lat:44.900, lng:-97.115,  hh:false, pc:false },
+  { name:"SD State Penitentiary (Prison Hospice)",        addr:"PO Box 5911",                    city:"Sioux Falls",  state:"SD", lat:43.528, lng:-96.722,  hh:false, pc:false },
+  { name:"Sanford Hospice – Chamberlain",                 addr:"110 W Beebe Ave",                city:"Chamberlain",  state:"SD", lat:43.800, lng:-99.330,  hh:true,  pc:true  },
+  { name:"Sanford Hospice – Sioux Falls",                 addr:"2710 W 12th Street",             city:"Sioux Falls",  state:"SD", lat:43.542, lng:-96.741,  hh:true,  pc:true  },
+  { name:"Sanford Hospice – Vermillion",                  addr:"20 S Plum St",                   city:"Vermillion",   state:"SD", lat:42.779, lng:-96.929,  hh:true,  pc:true  },
+  { name:"St. Croix Hospice – Sioux Falls",               addr:"6330 S Western Ave, Ste. 100",   city:"Sioux Falls",  state:"SD", lat:43.513, lng:-96.748,  hh:false, pc:false },
+  { name:"Stillwater Hospice of Western South Dakota",    addr:"3117 West Rapid St, Ste. 5",     city:"Rapid City",   state:"SD", lat:44.080, lng:-103.231, hh:false, pc:false },
+  // NORTH DAKOTA
+  { name:"CHI Health Connect at Home – Dickinson",        addr:"986 2nd Ave W",                  city:"Dickinson",    state:"ND", lat:46.879, lng:-102.790, hh:true,  pc:true  },
+  { name:"CHI Health at Home – Bismarck",                 addr:"1212 E Main Ave",                city:"Bismarck",     state:"ND", lat:46.813, lng:-100.779, hh:true,  pc:true  },
+  { name:"CHI Health at Home – Valley City",              addr:"367 2nd St SW",                  city:"Valley City",  state:"ND", lat:46.923, lng:-98.003,  hh:true,  pc:true  },
+  { name:"CHI Health at Home – Williston",                addr:"1301 15th Avenue W",             city:"Williston",    state:"ND", lat:48.147, lng:-103.619, hh:true,  pc:true  },
+  { name:"Ethos Hospice – Fargo",                         addr:"3361 45th Street S, Ste. 100",   city:"Fargo",        state:"ND", lat:46.838, lng:-96.880,  hh:false, pc:false },
+  { name:"Ethos Hospice – Bismarck",                      addr:"2425 Hillview Ave, Ste. 1001",   city:"Bismarck",     state:"ND", lat:46.820, lng:-100.772, hh:false, pc:false },
+  { name:"Ethos Hospice – Grand Forks",                   addr:"4491 S Washington St, Ste. A",   city:"Grand Forks",  state:"ND", lat:47.925, lng:-97.033,  hh:false, pc:false },
+  { name:"HIA (formerly HRRV) – Fargo",                   addr:"1701 38th St S, Ste. 101",       city:"Fargo",        state:"ND", lat:46.841, lng:-96.884,  hh:false, pc:true  },
+  { name:"HIA (formerly HRRV) – Minot",                   addr:"1015 S Broadway #2, Ste. A201",  city:"Minot",        state:"ND", lat:48.232, lng:-101.296, hh:false, pc:false },
+  { name:"HIA (formerly HRRV) – Bismarck",                addr:"1400 43rd Ave. NE, Ste. 212",    city:"Bismarck",     state:"ND", lat:46.818, lng:-100.762, hh:false, pc:false },
+  { name:"HIA (formerly HRRV) – Grand Forks",             addr:"3001A 32nd Ave S, Ste. 1A",      city:"Grand Forks",  state:"ND", lat:47.920, lng:-97.040,  hh:false, pc:true  },
+  { name:"HIA (formerly HRRV) – Valley City",             addr:"1240 West Main Street",          city:"Valley City",  state:"ND", lat:46.920, lng:-98.008,  hh:false, pc:true  },
+  { name:"Heart of America Hospice",                       addr:"800 Main Avenue S",              city:"Rugby",        state:"ND", lat:48.368, lng:-100.001, hh:false, pc:false },
+  { name:"Jamestown Regional Medical Center Hospice",      addr:"2422 20th St SW",                city:"Jamestown",    state:"ND", lat:46.906, lng:-98.694,  hh:false, pc:false },
+  { name:"Sakakawea Medical Center Hospice",               addr:"510 8th Avenue NE",              city:"Hazen",        state:"ND", lat:47.295, lng:-101.624, hh:false, pc:false },
+  { name:"Sanford Fargo Hospice",                          addr:"820 4th St N",                   city:"Fargo",        state:"ND", lat:46.872, lng:-96.795,  hh:true,  pc:true  },
+  { name:"Sanford Home Care Hospice",                      addr:"910 18th St NW",                 city:"Mandan",       state:"ND", lat:46.827, lng:-100.893, hh:true,  pc:true  },
+  { name:"Trinity Hospitals – Hospice",                    addr:"1015 S Broadway, Ste. 306",      city:"Minot",        state:"ND", lat:48.235, lng:-101.299, hh:false, pc:false },
+  // NEBRASKA
+  { name:"Angels Care Hospice – Omaha",                    addr:"10040 Regency Circle, Ste. 330", city:"Omaha",        state:"NE", lat:41.257, lng:-96.050,  hh:false, pc:false },
+  { name:"Angels Care Hospice – McCook",                   addr:"711 E 11th St, Suite A",         city:"McCook",       state:"NE", lat:40.202, lng:-100.626, hh:false, pc:false },
+  { name:"AseraCare Hospice – Grand Island",               addr:"912 Concord Ave",                city:"Grand Island", state:"NE", lat:40.925, lng:-98.342,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Kearney",                    addr:"4111 4th Ave, Ste. 50",          city:"Kearney",      state:"NE", lat:40.700, lng:-99.082,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Lincoln",                    addr:"5715 S 34th St, Ste. 100",       city:"Lincoln",      state:"NE", lat:40.762, lng:-96.648,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Norfolk",                    addr:"120 N 27th St, Ste. 300",        city:"Norfolk",      state:"NE", lat:41.986, lng:-97.418,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – O'Neill",                    addr:"421 E Douglas St",               city:"O'Neill",      state:"NE", lat:42.456, lng:-98.648,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – Omaha",                      addr:"8710 Frederick St, Ste. 100",    city:"Omaha",        state:"NE", lat:41.260, lng:-96.051,  hh:true,  pc:true  },
+  { name:"AseraCare Hospice – York",                       addr:"401 Lincoln Ave, Ste. 2",        city:"York",         state:"NE", lat:40.869, lng:-97.596,  hh:true,  pc:true  },
+  { name:"Avera at Home Hospice – Hartington",             addr:"405 W Darlene St",               city:"Hartington",   state:"NE", lat:42.622, lng:-97.263,  hh:false, pc:false },
+  { name:"Avera at Home – O'Neill",                        addr:"300 N 2nd St",                   city:"O'Neill",      state:"NE", lat:42.458, lng:-98.645,  hh:true,  pc:true  },
+  { name:"Brookestone – Alliance",                         addr:"150 W 24th St, Suite 100",       city:"Alliance",     state:"NE", lat:42.102, lng:-102.872, hh:false, pc:false },
+  { name:"Brookestone – Gering",                           addr:"1335 M St, Suite 100",           city:"Gering",       state:"NE", lat:41.825, lng:-103.660, hh:false, pc:false },
+  { name:"Brookestone – North Platte",                     addr:"904 S Linden Dr",                city:"North Platte", state:"NE", lat:41.124, lng:-100.765, hh:false, pc:false },
+  { name:"Brookestone – Elkhorn",                          addr:"600 Brookestone Meadows Plaza",   city:"Elkhorn",      state:"NE", lat:41.288, lng:-96.237,  hh:false, pc:false },
+  { name:"Brookestone – Kearney",                          addr:"4111 4th Ave, Suite 50",         city:"Kearney",      state:"NE", lat:40.698, lng:-99.080,  hh:false, pc:false },
+  { name:"Burgess Health Center Hospice",                  addr:"1600 Diamond St",                city:"Decatur",      state:"NE", lat:42.007, lng:-96.249,  hh:true,  pc:false },
+  { name:"CHI Health at Home – Lincoln",                   addr:"245 S 84th St, Ste. 300",        city:"Lincoln",      state:"NE", lat:40.801, lng:-96.706,  hh:true,  pc:true  },
+  { name:"CHI Health at Home – Omaha",                     addr:"7415 Cedar St",                  city:"Omaha",        state:"NE", lat:41.221, lng:-96.068,  hh:true,  pc:true  },
+  { name:"Central Plains Hospice",                         addr:"835 Meridian Ave",               city:"Cozad",        state:"NE", lat:40.862, lng:-99.985,  hh:false, pc:false },
+  { name:"Chadron Community Hospital Hospice",             addr:"825 Centennial Dr",              city:"Chadron",      state:"NE", lat:42.829, lng:-103.001, hh:true,  pc:false },
+  { name:"Charter Hospice of Omaha",                       addr:"4805 S 107th Ave",               city:"Omaha",        state:"NE", lat:41.195, lng:-96.087,  hh:false, pc:false },
+  { name:"Community Health Care & Hospice",                addr:"1301 E H St",                    city:"McCook",       state:"NE", lat:40.200, lng:-100.628, hh:true,  pc:false },
+  { name:"Compassionate Care Hospice",                     addr:"6818 Grover St, Ste. 304",       city:"Omaha",        state:"NE", lat:41.231, lng:-96.009,  hh:false, pc:false },
+  { name:"Cottonwood Hospice",                             addr:"1201 N 10th St",                 city:"Beatrice",     state:"NE", lat:40.268, lng:-96.747,  hh:false, pc:false },
+  { name:"Endless Journey",                                addr:"10909 Mill Valley Rd, Ste. 205", city:"Omaha",        state:"NE", lat:41.228, lng:-96.149,  hh:false, pc:false },
+  { name:"Faith Regional Health Services Hospice",         addr:"1500 Koenigstein Ave",           city:"Norfolk",      state:"NE", lat:41.984, lng:-97.415,  hh:true,  pc:false },
+  { name:"Gentiva Hospice – Omaha",                        addr:"444 Regency Pkwy Dr, Ste. 200",  city:"Omaha",        state:"NE", lat:41.258, lng:-96.053,  hh:true,  pc:true  },
+  { name:"Hillcrest Hospice – Bellevue",                   addr:"1820 Hillcrest Dr, Ste. B",      city:"Bellevue",     state:"NE", lat:41.130, lng:-95.895,  hh:false, pc:false },
+  { name:"Horisun Hospice – Lincoln",                      addr:"2200 S 40th St, Ste. 101",       city:"Lincoln",      state:"NE", lat:40.785, lng:-96.684,  hh:false, pc:false },
+  { name:"Hospice & Home Healthcare of Saunders County",   addr:"141 E 5th St",                   city:"Wahoo",        state:"NE", lat:41.212, lng:-96.624,  hh:true,  pc:false },
+  { name:"Hospice of Columbus Community Hospital",         addr:"3005 19th St, Ste. 600",         city:"Columbus",     state:"NE", lat:41.429, lng:-97.367,  hh:false, pc:false },
+  { name:"Hospice of Tabitha – Grand Island",              addr:"2838 Old Fair Rd",               city:"Grand Island", state:"NE", lat:40.928, lng:-98.344,  hh:true,  pc:false },
+  { name:"Hospice of Tabitha – Lincoln",                   addr:"4720 Randolph St",               city:"Lincoln",      state:"NE", lat:40.800, lng:-96.703,  hh:true,  pc:false },
+  { name:"Hospice of Tabitha – Crete",                     addr:"819 Central Ave",                city:"Crete",        state:"NE", lat:40.629, lng:-96.965,  hh:true,  pc:false },
+  { name:"Mary Lanning Hospice",                           addr:"715 N Saint Joseph Ave",         city:"Hastings",     state:"NE", lat:40.589, lng:-98.388,  hh:true,  pc:false },
+  { name:"Methodist Fremont Health Hospice",               addr:"450 E 23rd St",                  city:"Fremont",      state:"NE", lat:41.426, lng:-96.498,  hh:true,  pc:false },
+  { name:"Oncare Hospice",                                 addr:"16934 Frances St, Ste. 106",     city:"Omaha",        state:"NE", lat:41.216, lng:-96.165,  hh:false, pc:false },
+  { name:"Peaceful Hearts Hospice",                        addr:"1812 N 203rd St",                city:"Elkhorn",      state:"NE", lat:41.284, lng:-96.231,  hh:false, pc:false },
+  { name:"ProMedica Hospice – Lincoln",                    addr:"3801 Union Dr, Ste. 202",        city:"Lincoln",      state:"NE", lat:40.760, lng:-96.645,  hh:true,  pc:true  },
+  { name:"Providence Hospice",                             addr:"1200 Providence Rd",             city:"Wayne",        state:"NE", lat:42.232, lng:-97.018,  hh:false, pc:false },
+  { name:"St. Croix Hospice",                             addr:"11207 W Dodge Rd",               city:"Omaha",        state:"NE", lat:41.230, lng:-96.148,  hh:false, pc:false },
+  { name:"St. Joseph Villa Homecare & Hospice",           addr:"1000 N 90th St, Ste. 203",       city:"Omaha",        state:"NE", lat:41.261, lng:-96.054,  hh:true,  pc:false },
+  { name:"Traditions Health",                             addr:"5550 S 59th St, Ste. 12",        city:"Lincoln",      state:"NE", lat:40.758, lng:-96.643,  hh:false, pc:true  },
+  { name:"VCHS Hospice",                                  addr:"2707 L St",                      city:"Ord",          state:"NE", lat:41.602, lng:-98.927,  hh:false, pc:false },
+  { name:"ruralMED Home Care Resources",                  addr:"1600 W 13th St",                 city:"Lexington",    state:"NE", lat:40.781, lng:-99.741,  hh:true,  pc:false },
+
+  // ── NEW MEXICO ────────────────────────────────────────────────────────────────
+  { name:"Alamogordo Home Health Care & Hospice",         addr:"1859 Indian Wells Road",          city:"Alamogordo",   state:"NM", lat:32.900, lng:-105.960, hh:true,  pc:false },
+  { name:"ABQ Hospice & Palliative Care Co.",             addr:"4550 Eubank Blvd NE #108",        city:"Albuquerque",  state:"NM", lat:35.132, lng:-106.534, hh:false, pc:true  },
+  { name:"Advantage Hospice dba Corus Hospice",           addr:"8725 Alameda Park Dr NE",         city:"Albuquerque",  state:"NM", lat:35.182, lng:-106.576, hh:false, pc:false },
+  { name:"Ambercare Hospice (Albuquerque)",               addr:"2129 Osuna Road NE",              city:"Albuquerque",  state:"NM", lat:35.131, lng:-106.628, hh:true,  pc:false, multi:true },
+  { name:"Ambercare Hospice (Alamogordo)",                addr:"788 Washington Ave",              city:"Alamogordo",   state:"NM", lat:32.899, lng:-105.964, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Belen)",                     addr:"420 N Main St",                   city:"Belen",        state:"NM", lat:34.663, lng:-106.776, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Deming)",                    addr:"707 E Pine St, Suite A",          city:"Deming",       state:"NM", lat:32.269, lng:-107.745, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Espanola)",                  addr:"1302 Calle De La Merced Rd",      city:"Espanola",     state:"NM", lat:36.003, lng:-106.075, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Las Cruces)",                addr:"3870 Foothills Rd",               city:"Las Cruces",   state:"NM", lat:32.333, lng:-106.745, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Las Vegas NM)",              addr:"1747 N Grand Ave",                city:"Las Vegas",    state:"NM", lat:35.603, lng:-105.219, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Lordsburg)",                 addr:"806 High St",                     city:"Lordsburg",    state:"NM", lat:32.351, lng:-108.709, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Santa Fe)",                  addr:"550-D St Michaels Dr",            city:"Santa Fe",     state:"NM", lat:35.655, lng:-105.973, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Silver City)",               addr:"1290 E 32nd St",                  city:"Silver City",  state:"NM", lat:32.775, lng:-108.268, hh:false, pc:false, multi:true },
+  { name:"Ambercare Hospice (Truth or Consequences)",     addr:"908 N Date St",                   city:"Truth or Consequences", state:"NM", lat:33.133, lng:-107.254, hh:false, pc:false, multi:true },
+  { name:"Billet Hospice Inc",                            addr:"126 Valencia Drive NE, Suite F",  city:"Albuquerque",  state:"NM", lat:35.101, lng:-106.628, hh:false, pc:false },
+  { name:"Bosque Trails Hospice LLC",                     addr:"1700 Louisiana Blvd NE, Ste 120", city:"Albuquerque",  state:"NM", lat:35.115, lng:-106.617, hh:false, pc:false },
+  { name:"Compassus Hospice (Albuquerque South)",         addr:"7770 Jefferson Street NE, Ste 305",city:"Albuquerque", state:"NM", lat:35.148, lng:-106.580, hh:true,  pc:true  },
+  { name:"Gentiva Hospice (Albuquerque)",                 addr:"7500 Jefferson Street NE, Ste 210",city:"Albuquerque", state:"NM", lat:35.146, lng:-106.583, hh:true,  pc:true,  multi:true },
+  { name:"Gentiva Hospice (Roswell)",                     addr:"400 N Pennsylvania Ave #500",     city:"Roswell",      state:"NM", lat:33.397, lng:-104.522, hh:false, pc:false, multi:true },
+  { name:"Gentiva Hospice (Clovis)",                      addr:"2708 N Prince St",                city:"Clovis",       state:"NM", lat:34.422, lng:-103.205, hh:false, pc:false, multi:true },
+  { name:"Harmony Home Health Services LLC",              addr:"5700 Harper Drive NE, Suite 250", city:"Albuquerque",  state:"NM", lat:35.147, lng:-106.582, hh:true,  pc:false },
+  { name:"High Desert Hospice (Albuquerque)",             addr:"8920 Adams NE, Ste B",            city:"Albuquerque",  state:"NM", lat:35.183, lng:-106.547, hh:false, pc:false, multi:true },
+  { name:"High Desert Hospice (Las Cruces)",              addr:"755 S Telshor Blvd, Suite D109",  city:"Las Cruces",   state:"NM", lat:32.295, lng:-106.746, hh:false, pc:false, multi:true },
+  { name:"Hospice de la Luz",                             addr:"3812 Academy Parkway N NE",       city:"Albuquerque",  state:"NM", lat:35.168, lng:-106.587, hh:false, pc:false },
+  { name:"Hospice of New Mexico LLC",                     addr:"2155 Louisiana Blvd NE, Ste 2200",city:"Albuquerque",  state:"NM", lat:35.115, lng:-106.617, hh:false, pc:false },
+  { name:"Interim Healthcare (Albuquerque)",              addr:"5201 Constitution Ave NE, Ste 103",city:"Albuquerque", state:"NM", lat:35.108, lng:-106.571, hh:true,  pc:false, multi:true },
+  { name:"Interim Healthcare (Roswell)",                  addr:"201 E 2nd St, Ste A",             city:"Roswell",      state:"NM", lat:33.394, lng:-104.521, hh:false, pc:false, multi:true },
+  { name:"Legacy Hospice (Albuquerque)",                  addr:"3610 Bosque Plaza Lane NW",       city:"Albuquerque",  state:"NM", lat:35.122, lng:-106.700, hh:false, pc:false },
+  { name:"LilyCare of New Mexico",                        addr:"4811 Hardware Dr NE, Suite C-1",  city:"Albuquerque",  state:"NM", lat:35.148, lng:-106.581, hh:false, pc:true  },
+  { name:"Luna Del Valle",                                addr:"4600 McLeod Rd NE",               city:"Albuquerque",  state:"NM", lat:35.150, lng:-106.553, hh:false, pc:false },
+  { name:"Luna Vista Hospice LLC",                        addr:"2116 Vista Oeste NW 1-B",         city:"Albuquerque",  state:"NM", lat:35.120, lng:-106.698, hh:false, pc:false },
+  { name:"Nevaeh Hospice Inc",                            addr:"4904 Alameda Blvd NE, Ste B",     city:"Albuquerque",  state:"NM", lat:35.182, lng:-106.576, hh:false, pc:false },
+  { name:"Presbyterian Hospice Inpatient Unit",           addr:"8100 Constitution Avenue NE",     city:"Albuquerque",  state:"NM", lat:35.108, lng:-106.549, hh:false, pc:false },
+  { name:"Q Hospice",                                     addr:"7801 Academy Road NE, Ste 214",   city:"Albuquerque",  state:"NM", lat:35.168, lng:-106.586, hh:false, pc:false },
+  { name:"Rio Grande Hospice LLC",                        addr:"4100 Osuna Rd NE, Ste 105",       city:"Albuquerque",  state:"NM", lat:35.131, lng:-106.627, hh:false, pc:false },
+  { name:"Roadrunner Healthcare",                         addr:"8300 Carmel Ave NE, Suite 401",   city:"Albuquerque",  state:"NM", lat:35.172, lng:-106.536, hh:true,  pc:false },
+  { name:"University of NM Home Care Hospice",            addr:"2600 Yale Blvd SE, Suite 2220",   city:"Albuquerque",  state:"NM", lat:35.074, lng:-106.619, hh:true,  pc:true  },
+  { name:"Heartland Hospice",                             addr:"4001 Indian School NE, Suite 300",city:"Albuquerque",  state:"NM", lat:35.108, lng:-106.592, hh:false, pc:false },
+  { name:"Abode Hospice of New Mexico LLC",               addr:"5600 Eubank Blvd NE, Suite 120",  city:"Albuquerque",  state:"NM", lat:35.132, lng:-106.534, hh:false, pc:false },
+  { name:"Enhabit Hospice (Carlsbad)",                    addr:"701 N Canal Street, Suite A",     city:"Carlsbad",     state:"NM", lat:32.427, lng:-104.228, hh:true,  pc:true,  multi:true },
+  { name:"Enhabit Hospice (Roswell)",                     addr:"400 N Pennsylvania Ave, Ste 1260",city:"Roswell",      state:"NM", lat:33.397, lng:-104.522, hh:false, pc:false, multi:true },
+  { name:"Enhabit Hospice (Las Cruces)",                  addr:"425 S Telshor Blvd, Suite 201B",  city:"Las Cruces",   state:"NM", lat:32.295, lng:-106.746, hh:true,  pc:true,  multi:true },
+  { name:"Enhabit Hospice (Albuquerque)",                 addr:"8801 Jefferson Street NE, Bldg A",city:"Albuquerque",  state:"NM", lat:35.183, lng:-106.576, hh:false, pc:false, multi:true },
+  { name:"Enhabit Hospice (Ruidoso)",                     addr:"1096 Mechem Drive, Suite 302B",   city:"Ruidoso",      state:"NM", lat:33.330, lng:-105.656, hh:true,  pc:true,  multi:true },
+  { name:"Lakeview Christian Hospice",                    addr:"1300 North Canal Street",         city:"Carlsbad",     state:"NM", lat:32.430, lng:-104.229, hh:false, pc:false },
+  { name:"ExcelaCare Hospice (Clovis)",                   addr:"2300 N Main Street, Suite 19A",   city:"Clovis",       state:"NM", lat:34.422, lng:-103.205, hh:true,  pc:false, multi:true },
+  { name:"ExcelaCare Hospice (Roswell)",                  addr:"201 E 2nd St, Ste A",             city:"Roswell",      state:"NM", lat:33.394, lng:-104.521, hh:true,  pc:false, multi:true },
+  { name:"ExcelaCare Hospice (Hobbs)",                    addr:"726 E Michigan Dr, Ste 130",      city:"Hobbs",        state:"NM", lat:32.702, lng:-103.130, hh:true,  pc:false, multi:true },
+  { name:"Plains Regional Medical Center Hospice",        addr:"2217 Dillon",                     city:"Clovis",       state:"NM", lat:34.415, lng:-103.208, hh:false, pc:false },
+  { name:"Basin Home Health & Hospice",                   addr:"200 North Orchard Avenue",        city:"Farmington",   state:"NM", lat:36.729, lng:-108.188, hh:true,  pc:false },
+  { name:"Guardian Angel Home Health Inc",                addr:"2800 North Hutton",               city:"Farmington",   state:"NM", lat:36.730, lng:-108.200, hh:true,  pc:false },
+  { name:"Gentiva (Hobbs)",                               addr:"1515 West Calle Sur St, Ste 129", city:"Hobbs",        state:"NM", lat:32.701, lng:-103.147, hh:true,  pc:true,  multi:true },
+  { name:"Star Hospice LLC (Hobbs)",                      addr:"1000 North Dalmont St",           city:"Hobbs",        state:"NM", lat:32.714, lng:-103.135, hh:false, pc:false },
+  { name:"Mesilla Valley Hospice Inc.",                   addr:"299 E Montana Ave",               city:"Las Cruces",   state:"NM", lat:32.316, lng:-106.767, hh:false, pc:false },
+  { name:"Sierra Hospice (Las Cruces)",                   addr:"201 N Church St, Suite 300",      city:"Las Cruces",   state:"NM", lat:32.313, lng:-106.778, hh:false, pc:false },
+  { name:"Ricelands Home Health Care and Hospice LLC",    addr:"2345 Southern Blvd SE, Suite C-8",city:"Rio Rancho",   state:"NM", lat:35.233, lng:-106.664, hh:true,  pc:false },
+  { name:"Compassus (Santa Fe)",                          addr:"1692 Hospital Drive, Suite 101",  city:"Santa Fe",     state:"NM", lat:35.644, lng:-105.984, hh:true,  pc:true,  multi:true },
+  { name:"Del Corazon Hospice LLC",                       addr:"811 St Michaels Drive, Suite 207",city:"Santa Fe",     state:"NM", lat:35.655, lng:-105.973, hh:false, pc:false },
+  { name:"Enchanted Sky Hospice LLC",                     addr:"1692B Hospital Drive, Suite 201A",city:"Santa Fe",     state:"NM", lat:35.644, lng:-105.984, hh:false, pc:false },
+  { name:"Presbyterian Hospice of Northern NM",           addr:"1400 Chama Ave",                  city:"Santa Fe",     state:"NM", lat:35.699, lng:-105.940, hh:false, pc:false },
+  { name:"Anvoi New Mexico (Taos)",                       addr:"705-B Paseo Del Pueblo Sur",      city:"Taos",         state:"NM", lat:36.395, lng:-105.572, hh:false, pc:false, multi:true },
+  { name:"Anvoi New Mexico (Santa Fe)",                   addr:"460 St Michael's Dr, Ste 803",    city:"Santa Fe",     state:"NM", lat:35.655, lng:-105.973, hh:false, pc:false, multi:true },
+  { name:"Anvoi New Mexico (Raton)",                      addr:"166 Hospital Dr",                 city:"Raton",        state:"NM", lat:36.903, lng:-104.439, hh:false, pc:false, multi:true },
+  { name:"Anvoi New Mexico (Alamogordo)",                 addr:"1200 N White Sands Blvd",         city:"Alamogordo",   state:"NM", lat:32.900, lng:-105.960, hh:false, pc:false, multi:true },
+  { name:"Socorro General Hospital Hospice",              addr:"1202 US Hwy 60 West, Bldg E",     city:"Socorro",      state:"NM", lat:34.057, lng:-106.909, hh:false, pc:false },
+  { name:"Mountain Home Health Hospice",                  addr:"630 Paseo Del Pueblo Sur, Ste 180",city:"Taos",        state:"NM", lat:36.395, lng:-105.572, hh:true,  pc:false },
+  { name:"Red Willow Hospice LLC",                        addr:"525 A Salazar Rd",                city:"Taos",         state:"NM", lat:36.387, lng:-105.566, hh:false, pc:false },
+  { name:"Helping Hands Hospice (Tucumcari)",             addr:"624 South 2nd Street",            city:"Tucumcari",    state:"NM", lat:35.171, lng:-103.727, hh:false, pc:false },
+  { name:"Tucumcari Hospice",                             addr:"301 E Miel De Luna Ave",          city:"Tucumcari",    state:"NM", lat:35.171, lng:-103.725, hh:false, pc:false },
+  { name:"High Country Hospice LLC",                      addr:"600 Hwy 195, Suite D",            city:"Elephant Butte",state:"NM",lat:33.148, lng:-107.196, hh:false, pc:false },
+
+  // ── IDAHO ─────────────────────────────────────────────────────────────────────
+  { name:"Eden Hospice (Ammon)",                          addr:"1480 Midway Avenue, Unit 7",      city:"Ammon",        state:"ID", lat:43.495, lng:-111.967, hh:false, pc:false, multi:true },
+  { name:"Eden Hospice (Idaho Falls)",                    addr:"2540 Channing Way",               city:"Idaho Falls",  state:"ID", lat:43.503, lng:-112.039, hh:false, pc:false, multi:true },
+  { name:"Eden Hospice (Inland Northwest)",               addr:"676 N Triangle Drive",            city:"Ponderay",     state:"ID", lat:48.302, lng:-116.540, hh:false, pc:false, multi:true },
+  { name:"Enhabit Home Health & Hospice (Boise)",         addr:"1450 S Eagle Flight Way, Ste 100A",city:"Boise",       state:"ID", lat:43.565, lng:-116.278, hh:true,  pc:true,  multi:true },
+  { name:"Enhabit Hospice (Fruitland)",                   addr:"435 S Whitley Dr",                city:"Fruitland",    state:"ID", lat:44.015, lng:-116.916, hh:true,  pc:true,  multi:true },
+  { name:"Enhabit Hospice (Twin Falls)",                  addr:"1411 Falls Ave E, Suite 815",     city:"Twin Falls",   state:"ID", lat:42.563, lng:-114.460, hh:false, pc:false, multi:true },
+  { name:"Enhabit of Eastern Idaho (Pocatello)",          addr:"183 Vista Drive, Suite B",        city:"Pocatello",    state:"ID", lat:42.867, lng:-112.466, hh:true,  pc:true,  multi:true },
+  { name:"Auburn Crest Hospice (Boise/Treasure Valley)",  addr:"3749 N Cloverdale Rd",            city:"Boise",        state:"ID", lat:43.644, lng:-116.349, hh:false, pc:false, multi:true },
+  { name:"Auburn Crest Hospice (Bonners Ferry)",          addr:"6541 Main St",                    city:"Bonners Ferry",state:"ID", lat:48.691, lng:-116.315, hh:false, pc:false, multi:true },
+  { name:"Auburn Crest Hospice (Hayden)",                 addr:"8382 N Wayne Dr",                 city:"Hayden",       state:"ID", lat:47.766, lng:-116.786, hh:false, pc:false, multi:true },
+  { name:"Auburn Crest Hospice (CDA)",                    addr:"1221 Ironwood Dr, Suite 102",     city:"Coeur d'Alene",state:"ID", lat:47.680, lng:-116.780, hh:false, pc:false, multi:true },
+  { name:"Auburn Crest Hospice (Post Falls)",             addr:"1810 E Schneidmiller Ave, Ste 140",city:"Post Falls",  state:"ID", lat:47.718, lng:-116.951, hh:false, pc:false, multi:true },
+  { name:"Auburn Crest Hospice (Twin Falls)",             addr:"397 Blue Lakes Blvd N",           city:"Twin Falls",   state:"ID", lat:42.584, lng:-114.481, hh:false, pc:false, multi:true },
+  { name:"First Choice Home Health & Hospice",            addr:"12400 West Overland Road, Ste 100",city:"Boise",       state:"ID", lat:43.576, lng:-116.350, hh:true,  pc:false },
+  { name:"Intermountain Homecare Hospice – Cassia",       addr:"1501 Hiland Ave, Ste Z",          city:"Burley",       state:"ID", lat:42.537, lng:-113.793, hh:true,  pc:false },
+  { name:"Idaho Home Health & Hospice (Caldwell)",        addr:"822 S 10th Ave",                  city:"Caldwell",     state:"ID", lat:43.659, lng:-116.685, hh:true,  pc:false, multi:true },
+  { name:"Idaho Home Health & Hospice (Lewiston)",        addr:"200 Main Street",                 city:"Lewiston",     state:"ID", lat:46.416, lng:-117.015, hh:false, pc:false, multi:true },
+  { name:"Idaho Home Health & Hospice (Fruitland)",       addr:"1104 Vermont Avenue",             city:"Fruitland",    state:"ID", lat:44.015, lng:-116.916, hh:false, pc:false, multi:true },
+  { name:"Idaho Home Health & Hospice (Twin Falls)",      addr:"722 N College Road Suite 125",    city:"Twin Falls",   state:"ID", lat:42.584, lng:-114.481, hh:true,  pc:false, multi:true },
+  { name:"Idaho Home Health & Hospice (Meridian)",        addr:"2487 W Navigator Drive Ste 440",  city:"Meridian",     state:"ID", lat:43.612, lng:-116.397, hh:false, pc:false, multi:true },
+  { name:"Horizon Hospice West (Caldwell)",               addr:"211 E Logan Street Ste 103",      city:"Caldwell",     state:"ID", lat:43.662, lng:-116.685, hh:false, pc:false, multi:true },
+  { name:"Horizon Hospice West (Emmett)",                 addr:"312 East Main St",                city:"Emmett",       state:"ID", lat:43.873, lng:-116.491, hh:false, pc:false, multi:true },
+  { name:"Horizon Hospice West (Mountain Home)",          addr:"560 N 6th East",                  city:"Mountain Home",state:"ID", lat:43.132, lng:-115.693, hh:false, pc:false, multi:true },
+  { name:"Horizon Hospice West (Fruitland)",              addr:"139 N Whitley Dr",                city:"Fruitland",    state:"ID", lat:44.015, lng:-116.916, hh:false, pc:false, multi:true },
+  { name:"Horizon Hospice (Meridian)",                    addr:"63 W Willowbrook Dr",             city:"Meridian",     state:"ID", lat:43.612, lng:-116.397, hh:false, pc:false, multi:true },
+  { name:"Horizon Hospice Magic Valley (Twin Falls)",     addr:"855 N College Road",              city:"Twin Falls",   state:"ID", lat:42.584, lng:-114.481, hh:false, pc:false, multi:true },
+  { name:"Symbii Hospice (Pocatello)",                    addr:"240 West Burnside Ave, Suite B",  city:"Pocatello",    state:"ID", lat:42.867, lng:-112.466, hh:false, pc:false, multi:true },
+  { name:"Symbii Hospice (Preston)",                      addr:"307 S 1st E",                     city:"Preston",      state:"ID", lat:42.096, lng:-111.878, hh:false, pc:false, multi:true },
+  { name:"Symbii Hospice (Idaho Falls)",                  addr:"3767 Professional Way",           city:"Idaho Falls",  state:"ID", lat:43.503, lng:-112.039, hh:false, pc:false, multi:true },
+  { name:"Hospice of North Idaho",                        addr:"2290 W Prairie Ave",              city:"Coeur d'Alene",state:"ID", lat:47.680, lng:-116.800, hh:false, pc:false },
+  { name:"Gentiva Hospice (CDA)",                         addr:"1321 N Northwood Center Ct, Ste A",city:"Coeur d'Alene",state:"ID",lat:47.694, lng:-116.796, hh:true,  pc:true  },
+  { name:"Rocky Mountain Care (CDA)",                     addr:"2100 Northwest Blvd, Ste 120",    city:"Coeur d'Alene",state:"ID", lat:47.677, lng:-116.803, hh:true,  pc:false },
+  { name:"Advanced Healthcare (CDA)",                     addr:"1578 W Riverstone Drive",         city:"Coeur d'Alene",state:"ID", lat:47.673, lng:-116.793, hh:true,  pc:false },
+  { name:"ACHS Hospice & Palliative Care",                addr:"815 S Bridgeway Place, Ste 122",  city:"Eagle",        state:"ID", lat:43.692, lng:-116.353, hh:false, pc:true  },
+  { name:"Keystone Hospice (Eagle)",                      addr:"21 N Fisher Park Way",            city:"Eagle",        state:"ID", lat:43.696, lng:-116.354, hh:false, pc:false },
+  { name:"Canyon Home Care & Hospice",                    addr:"929 NW 16th Street",              city:"Fruitland",    state:"ID", lat:44.015, lng:-116.916, hh:true,  pc:false },
+  { name:"Heart N Home Hospice (Fruitland)",              addr:"1104 Vermont Ave",                city:"Fruitland",    state:"ID", lat:44.018, lng:-116.918, hh:true,  pc:true,  multi:true },
+  { name:"Heart N Home Hospice (Meridian)",               addr:"4664 N Penngrove Way, Suite 200", city:"Meridian",     state:"ID", lat:43.656, lng:-116.391, hh:false, pc:false, multi:true },
+  { name:"Heart 'N Home Hospice (Lewiston)",              addr:"200 Main St",                     city:"Lewiston",     state:"ID", lat:46.416, lng:-117.015, hh:true,  pc:false },
+  { name:"Ancora Hospice (Fruitland)",                    addr:"808 N Whitley Drive",             city:"Fruitland",    state:"ID", lat:44.015, lng:-116.916, hh:false, pc:true,  multi:true },
+  { name:"Ancora Hospice (Meridian)",                     addr:"660 E Franklin Rd, Suite 140",    city:"Meridian",     state:"ID", lat:43.608, lng:-116.352, hh:false, pc:false, multi:true },
+  { name:"Syringa General Hospital Hospice",              addr:"607 West Main Street",            city:"Grangeville",  state:"ID", lat:45.927, lng:-116.124, hh:false, pc:false },
+  { name:"Hospice of Eastern Idaho",                      addr:"1810 Moran Street",               city:"Idaho Falls",  state:"ID", lat:43.494, lng:-112.036, hh:false, pc:false },
+  { name:"Aspen Hospice (Idaho Falls)",                   addr:"3480 Washington Parkway",         city:"Idaho Falls",  state:"ID", lat:43.503, lng:-112.064, hh:false, pc:false, multi:true },
+  { name:"Aspen Home Care and Hospice (Meridian)",        addr:"2950 E Magic View Dr, Ste 188",   city:"Meridian",     state:"ID", lat:43.589, lng:-116.330, hh:true,  pc:false, multi:true },
+  { name:"Brio Idaho Hospice LLC",                        addr:"950 Memorial Dr",                 city:"Idaho Falls",  state:"ID", lat:43.494, lng:-112.038, hh:false, pc:false },
+  { name:"OneSource Hospice (Idaho Falls)",               addr:"1680 Elk Creek Drive",            city:"Idaho Falls",  state:"ID", lat:43.503, lng:-112.050, hh:false, pc:false, multi:true },
+  { name:"OneSource Hospice (Pocatello)",                 addr:"1951 Bench Rd Suite G",           city:"Pocatello",    state:"ID", lat:42.867, lng:-112.450, hh:false, pc:false, multi:true },
+  { name:"Solace Healthcare (Idaho Falls)",               addr:"850 Energy Pl, Ste 2",            city:"Idaho Falls",  state:"ID", lat:43.503, lng:-112.040, hh:false, pc:false },
+  { name:"Alliance Hospice of Idaho",                     addr:"1655 1st Street",                 city:"Idaho Falls",  state:"ID", lat:43.494, lng:-112.034, hh:false, pc:false },
+  { name:"Elite Hospice (Lewiston)",                      addr:"504 Main Street",                 city:"Lewiston",     state:"ID", lat:46.416, lng:-117.013, hh:false, pc:false },
+  { name:"St. Luke's Home Care / Hospice",                addr:"3330 E Louise Dr, Ste 400",       city:"Meridian",     state:"ID", lat:43.589, lng:-116.328, hh:true,  pc:true  },
+  { name:"Harrison's Hope (Meridian)",                    addr:"3137 S Meridian Rd, Suite 120",   city:"Meridian",     state:"ID", lat:43.589, lng:-116.398, hh:false, pc:false, multi:true },
+  { name:"Harrison's Hope (Twin Falls)",                  addr:"401 Goodings St N, Suite 107",    city:"Twin Falls",   state:"ID", lat:42.563, lng:-114.460, hh:false, pc:false, multi:true },
+  { name:"Lighthouse Hospice LLC",                        addr:"1079 S Ancona Ave, Suite 130",    city:"Eagle",        state:"ID", lat:43.692, lng:-116.375, hh:false, pc:false },
+  { name:"Bluebird Hospice",                              addr:"408 S Eagle Rd, Suite 201",       city:"Eagle",        state:"ID", lat:43.692, lng:-116.353, hh:false, pc:false },
+  { name:"Terrace Hospice",                               addr:"2929 W Navigator Dr",             city:"Meridian",     state:"ID", lat:43.612, lng:-116.420, hh:false, pc:false },
+  { name:"Copper Falls Hospice LLC",                      addr:"1830 S Eagle Rd",                 city:"Meridian",     state:"ID", lat:43.587, lng:-116.354, hh:false, pc:false },
+  { name:"Aarondale Hospice",                             addr:"39 W Pine Ave",                   city:"Meridian",     state:"ID", lat:43.612, lng:-116.397, hh:false, pc:false },
+  { name:"Doctors Hospice of Idaho",                      addr:"1811 E Karcher Road",             city:"Nampa",        state:"ID", lat:43.579, lng:-116.540, hh:false, pc:false },
+  { name:"Journeys Hospice (Nampa)",                      addr:"223 East Amity",                  city:"Nampa",        state:"ID", lat:43.578, lng:-116.563, hh:false, pc:false },
+  { name:"Geiss Med Hospice ID LLC",                      addr:"4301 Garrity Blvd, Ste 103",      city:"Nampa",        state:"ID", lat:43.579, lng:-116.565, hh:false, pc:false },
+  { name:"Treasure Valley Hospice",                       addr:"8 6th Street North, Suite 200",   city:"Nampa",        state:"ID", lat:43.582, lng:-116.564, hh:false, pc:false },
+  { name:"Heritage Hospice (Pocatello)",                  addr:"1009 W Quinn Road, Suite B",      city:"Pocatello",    state:"ID", lat:42.867, lng:-112.480, hh:false, pc:false, multi:true },
+  { name:"Heritage Hospice (Idaho Falls)",                addr:"560 West Sunnyside Rd, Suite E",  city:"Idaho Falls",  state:"ID", lat:43.503, lng:-112.050, hh:false, pc:false, multi:true },
+  { name:"Heritage Hospice (Twin Falls)",                 addr:"788 Eastland Dr",                 city:"Twin Falls",   state:"ID", lat:42.563, lng:-114.465, hh:false, pc:false, multi:true },
+  { name:"Franklin County Medical Center Hospice",        addr:"44 North 1st East",               city:"Preston",      state:"ID", lat:42.096, lng:-111.878, hh:false, pc:false },
+  { name:"Bonner General Health Hospice",                 addr:"520 North Third Avenue",          city:"Sandpoint",    state:"ID", lat:48.278, lng:-116.553, hh:false, pc:false },
+  { name:"White Oak Hospice",                             addr:"124 N Seneca Springs Way",        city:"Star",         state:"ID", lat:43.691, lng:-116.488, hh:false, pc:false },
+  { name:"Hospice Visions",                               addr:"455 Park View Loop",              city:"Twin Falls",   state:"ID", lat:42.563, lng:-114.455, hh:false, pc:false },
+  { name:"Saint Alphonsus Home Health & Hospice",         addr:"427 North Curtis Road",           city:"Boise",        state:"ID", lat:43.617, lng:-116.230, hh:false, pc:false },
+
+  // ── WYOMING ───────────────────────────────────────────────────────────────────
+  { name:"Central Wyoming Hospice Program",               addr:"319 South Wilson Street",         city:"Casper",       state:"WY", lat:42.849, lng:-106.321, hh:false, pc:true  },
+  { name:"CaringEdge Hospice of Casper LLC",              addr:"5870 E 2nd Ave",                  city:"Casper",       state:"WY", lat:42.858, lng:-106.276, hh:false, pc:false },
+  { name:"Enhabit Hospice (Casper)",                      addr:"907 N Poplar Street, Suite 277",  city:"Casper",       state:"WY", lat:42.860, lng:-106.323, hh:true,  pc:true,  multi:true },
+  { name:"Enhabit Hospice (Cheyenne)",                    addr:"1715 Fleischli Pkwy, Ste 3",      city:"Cheyenne",     state:"WY", lat:41.150, lng:-104.820, hh:true,  pc:true,  multi:true },
+  { name:"Enhabit Hospice (Lander)",                      addr:"230 N First Street",              city:"Lander",       state:"WY", lat:42.832, lng:-108.731, hh:true,  pc:true,  multi:true },
+  { name:"Cheyenne Regional Davis Hospice Center",        addr:"6000 Sycamore Road",              city:"Cheyenne",     state:"WY", lat:41.131, lng:-104.784, hh:false, pc:false },
+  { name:"Eden Hospice (Cheyenne)",                       addr:"2232 Dell Range Blvd, Suite 304", city:"Cheyenne",     state:"WY", lat:41.163, lng:-104.817, hh:false, pc:false },
+  { name:"Nobel Care Hospice Inc",                        addr:"1607 Capitol Ave, Ste 326",       city:"Cheyenne",     state:"WY", lat:41.140, lng:-104.820, hh:false, pc:false },
+  { name:"Cody Regional Health Spirit Mountain Hospice",  addr:"808 Canyon View Avenue",          city:"Cody",         state:"WY", lat:44.525, lng:-109.056, hh:false, pc:false },
+  { name:"Best Home Health & Hospice LLC",                addr:"105 Yellow Creek Road",           city:"Evanston",     state:"WY", lat:41.268, lng:-110.963, hh:true,  pc:false },
+  { name:"Hospice of Campbell County Memorial Hospital",  addr:"300 S Burma Ave",                 city:"Gillette",     state:"WY", lat:44.293, lng:-105.499, hh:false, pc:false },
+  { name:"Everwind Hospice (Gillette)",                   addr:"801 E 4th St, Ste 14D",           city:"Gillette",     state:"WY", lat:44.293, lng:-105.495, hh:false, pc:false, multi:true },
+  { name:"Everwind Hospice (Casper)",                     addr:"145 S Durbin St STE 105",         city:"Casper",       state:"WY", lat:42.849, lng:-106.323, hh:false, pc:false, multi:true },
+  { name:"Everwind Hospice (Sheridan)",                   addr:"1851 Big Horn Ave Room 1100",     city:"Sheridan",     state:"WY", lat:44.799, lng:-106.957, hh:false, pc:false, multi:true },
+  { name:"Sharon's Home Health & Hospice",                addr:"1103 E Boxelder Rd, Suite J-B",   city:"Gillette",     state:"WY", lat:44.295, lng:-105.490, hh:false, pc:false },
+  { name:"St. John's Health (Hospice)",                   addr:"555 East Broadway, Suite 115",    city:"Jackson",      state:"WY", lat:43.479, lng:-110.762, hh:false, pc:false },
+  { name:"Hospice of Laramie",                            addr:"1754 Centennial Drive",           city:"Laramie",      state:"WY", lat:41.311, lng:-105.591, hh:false, pc:false },
+  { name:"Cowboy Cares Home Health & Hospice",            addr:"39814 Business Loop 80",          city:"Lyman",        state:"WY", lat:41.325, lng:-110.298, hh:true,  pc:false },
+  { name:"Stillwater Hospice of Northern Wyoming (Powell)",addr:"210 N Bent St",                  city:"Powell",       state:"WY", lat:44.753, lng:-108.758, hh:false, pc:false, multi:true },
+  { name:"Stillwater Hospice of Northern Wyoming (Lovell)",addr:"444 Montana Avenue",             city:"Lovell",       state:"WY", lat:44.836, lng:-108.390, hh:false, pc:false, multi:true },
+  { name:"Help for Health Hospice",                       addr:"1240 College View Dr",            city:"Riverton",     state:"WY", lat:43.024, lng:-108.380, hh:false, pc:false },
+  { name:"Encompass Health Hospice (Riverton)",           addr:"716 College View Drive, Suite C", city:"Riverton",     state:"WY", lat:43.026, lng:-108.382, hh:false, pc:false },
+  { name:"Hospice of Sweetwater County",                  addr:"333 Broadway Street, Suite 220",  city:"Rock Springs", state:"WY", lat:41.587, lng:-109.203, hh:false, pc:false },
+  { name:"Sheridan Memorial Hospital Hospice",            addr:"1401 W 5th Street",               city:"Sheridan",     state:"WY", lat:44.799, lng:-106.960, hh:false, pc:false },
+  { name:"Susie Bowling Lawrence Hospice",                addr:"497 West Lott",                   city:"Buffalo",      state:"WY", lat:44.348, lng:-106.702, hh:false, pc:false },
+  { name:"Symbii Hospice (Afton)",                        addr:"770 S Washington St, Ste B",      city:"Afton",        state:"WY", lat:42.726, lng:-110.931, hh:false, pc:false },
+  { name:"Weston County Hospice",                         addr:"1124 Washington Blvd",            city:"Newcastle",    state:"WY", lat:43.854, lng:-104.193, hh:false, pc:false },
+
+  // ── KANSAS ───────────────────────────────────────────────────────────────────
+  { name:"Kindred Hospice (Anthony)",                     addr:"816 North LL&G",                  city:"Anthony",      state:"KS", lat:37.153, lng:-98.033, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (El Dorado)",                   addr:"111 West Ash",                    city:"El Dorado",    state:"KS", lat:37.818, lng:-96.862, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Emporia)",                     addr:"1309 West 6th Avenue",            city:"Emporia",      state:"KS", lat:38.407, lng:-96.194, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Fort Scott)",                  addr:"12 East National Avenue",         city:"Fort Scott",   state:"KS", lat:37.839, lng:-94.707, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Great Bend)",                  addr:"117 North Washington",            city:"Great Bend",   state:"KS", lat:38.364, lng:-98.765, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Hutchinson)",                  addr:"120 North Main Street",           city:"Hutchinson",   state:"KS", lat:38.061, lng:-97.930, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Independence)",                addr:"201 North Penn Ave, Ste 105",     city:"Independence", state:"KS", lat:37.224, lng:-95.709, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (McPherson)",                   addr:"117 East Euclid",                 city:"McPherson",    state:"KS", lat:38.370, lng:-97.664, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Newton)",                      addr:"301 North Main, Ste 107",         city:"Newton",       state:"KS", lat:38.047, lng:-97.345, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Paola)",                       addr:"212 North Hospital Drive",        city:"Paola",        state:"KS", lat:38.572, lng:-94.879, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Pittsburg)",                   addr:"606A Broadway",                   city:"Pittsburg",    state:"KS", lat:37.411, lng:-94.705, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Pratt)",                       addr:"201 East 1st, Ste B",             city:"Pratt",        state:"KS", lat:37.644, lng:-98.737, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Salina)",                      addr:"200 South Santa Fe",              city:"Salina",       state:"KS", lat:38.840, lng:-97.611, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Sedan)",                       addr:"113 East Main Street",            city:"Sedan",        state:"KS", lat:37.124, lng:-96.186, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Topeka)",                      addr:"2900-H Oakley Avenue",            city:"Topeka",       state:"KS", lat:39.034, lng:-95.705, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Wellington)",                  addr:"314 North Washington Street",     city:"Wellington",   state:"KS", lat:37.265, lng:-97.402, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Wichita)",                     addr:"2622 West Central Ave, Ste 401B", city:"Wichita",      state:"KS", lat:37.692, lng:-97.386, hh:false, pc:false, multi:true },
+  { name:"Kindred Hospice (Winfield)",                    addr:"917 Main Street",                 city:"Winfield",     state:"KS", lat:37.236, lng:-96.999, hh:false, pc:false, multi:true },
+  { name:"Harry Hynes Memorial Hospice (Coffeyville)",    addr:"2404 West 8th Street",            city:"Coffeyville",  state:"KS", lat:37.036, lng:-95.628, hh:false, pc:false, multi:true },
+  { name:"Harry Hynes Memorial Hospice (El Dorado)",      addr:"226 South Main Street, Ste 3C",   city:"El Dorado",    state:"KS", lat:37.817, lng:-96.863, hh:false, pc:false, multi:true },
+  { name:"Harry Hynes Memorial Hospice (Newton)",         addr:"427 Southeast 2nd",               city:"Newton",       state:"KS", lat:38.046, lng:-97.344, hh:false, pc:false, multi:true },
+  { name:"Harry Hynes Memorial Hospice (Parsons)",        addr:"3106 Main Street",                city:"Parsons",      state:"KS", lat:37.341, lng:-95.261, hh:false, pc:false, multi:true },
+  { name:"Harry Hynes Memorial Hospice (Pittsburg)",      addr:"1102 East Centennial",            city:"Pittsburg",    state:"KS", lat:37.412, lng:-94.704, hh:false, pc:false, multi:true },
+  { name:"Harry Hynes Memorial Hospice (Wichita)",        addr:"929 North Saint Francis, 8th Fl", city:"Wichita",      state:"KS", lat:37.695, lng:-97.336, hh:false, pc:false, multi:true },
+  { name:"Harry Hynes Memorial Hospice (Winfield)",       addr:"206A E 9th",                      city:"Winfield",     state:"KS", lat:37.236, lng:-96.998, hh:false, pc:false, multi:true },
+  { name:"Interim Healthcare of Wichita (Hospice)",       addr:"333 South Broadway, Ste 200",     city:"Wichita",      state:"KS", lat:37.683, lng:-97.337, hh:true,  pc:false, multi:true },
+  { name:"Interim Healthcare of Topeka",                  addr:"1251 SW Arrowhead Suite 103",     city:"Topeka",       state:"KS", lat:39.034, lng:-95.717, hh:true,  pc:false, multi:true },
+  { name:"Good Shepherd Hospice (Newton)",                addr:"500 North Main Place, Ste 213",   city:"Newton",       state:"KS", lat:38.048, lng:-97.345, hh:false, pc:false, multi:true },
+  { name:"Good Shepherd Hospice (Wichita)",               addr:"439 North McLean Blvd, Ste 100",  city:"Wichita",      state:"KS", lat:37.692, lng:-97.353, hh:false, pc:false, multi:true },
+  { name:"Phoenix Home Care & Hospice (Wichita)",         addr:"3450 N Rock Road Ste 213",        city:"Wichita",      state:"KS", lat:37.741, lng:-97.253, hh:true,  pc:false, multi:true },
+  { name:"Phoenix Home Care & Hospice (Overland Park)",   addr:"6803 West 64th Street, Ste 101",  city:"Overland Park",state:"KS", lat:38.980, lng:-94.681, hh:true,  pc:false, multi:true },
+  { name:"Midland Care Hospice",                          addr:"200 Southwest Frazier Circle",    city:"Topeka",       state:"KS", lat:39.052, lng:-95.698, hh:false, pc:true  },
+  { name:"Monarch Hospice & Palliative Care",             addr:"7451 Switzer Rd",                 city:"Shawnee",      state:"KS", lat:39.002, lng:-94.717, hh:false, pc:true  },
+  { name:"Kansas City Hospice & Palliative Care (Overland Park)", addr:"10100 West 87th St, Ste 100", city:"Overland Park", state:"KS", lat:38.981, lng:-94.724, hh:false, pc:true, multi:true },
+  { name:"Kansas City Hospice & Palliative Care (Shawnee Mission)", addr:"8012 State Line Road", city:"Shawnee Mission",state:"KS", lat:38.975, lng:-94.602, hh:false, pc:true, multi:true },
+  { name:"Serenity Hospice Care",                         addr:"9415 East Harry Street Suite 306",city:"Wichita",      state:"KS", lat:37.660, lng:-97.256, hh:false, pc:false },
+  { name:"Elara Caring (Topeka)",                         addr:"1251 SW Arrowhead Suite 200",     city:"Topeka",       state:"KS", lat:39.034, lng:-95.717, hh:true,  pc:false },
+  { name:"St. Croix Hospice (Hiawatha)",                  addr:"310 South 1st Street",            city:"Hiawatha",     state:"KS", lat:39.851, lng:-95.533, hh:false, pc:false, multi:true },
+  { name:"Ascend Hospice",                                addr:"5701 State Avenue, Ste 100",      city:"Kansas City",  state:"KS", lat:39.116, lng:-94.705, hh:false, pc:false },
+  { name:"Compassus Hospice (Wichita)",                   addr:"301 North Main Street, Ste 250",  city:"Wichita",      state:"KS", lat:37.691, lng:-97.337, hh:false, pc:true  },
+  { name:"Enhabit Hospice (Wichita)",                     addr:"2400 North Woodlawn Blvd, Ste 230",city:"Wichita",     state:"KS", lat:37.735, lng:-97.253, hh:true,  pc:true  },
+  { name:"Encompass Health Hospice (Wichita)",            addr:"3550 N Rock Road Ste 113",        city:"Wichita",      state:"KS", lat:37.741, lng:-97.253, hh:false, pc:false },
+  { name:"Angels Care Hospice (Wichita)",                 addr:"2400 North Woodlawn Blvd, Ste 425",city:"Wichita",     state:"KS", lat:37.735, lng:-97.254, hh:false, pc:false, multi:true },
+  { name:"Angels Care Hospice (Overland Park)",           addr:"7400 West 132nd Street, Ste 180", city:"Overland Park",state:"KS", lat:38.913, lng:-94.718, hh:false, pc:false, multi:true },
+  { name:"Traditions Health (Wichita)",                   addr:"2955 N Ridge Rd Ste 100",         city:"Wichita",      state:"KS", lat:37.756, lng:-97.362, hh:false, pc:false, multi:true },
+  { name:"Traditions Health (Overland Park)",             addr:"6900 College Blvd Ste 540",       city:"Overland Park",state:"KS", lat:38.916, lng:-94.688, hh:false, pc:false, multi:true },
+  { name:"ProMedica Hospice (Wichita)",                   addr:"8100 E 22nd St N Bldg 600",       city:"Wichita",      state:"KS", lat:37.719, lng:-97.243, hh:false, pc:false },
+  { name:"Faith Hospice (Wichita)",                       addr:"1919 N Amidon Ave Ste 408",       city:"Wichita",      state:"KS", lat:37.706, lng:-97.368, hh:false, pc:false, multi:true },
+  { name:"Faith Hospice Care (Kansas City)",              addr:"8400 State Line Rd Ste 200",      city:"Leawood",      state:"KS", lat:38.951, lng:-94.610, hh:false, pc:false, multi:true },
+  { name:"Hospice Care of VNA (Kansas City area)",        addr:"600 N Mulberry St",               city:"Olathe",       state:"KS", lat:38.882, lng:-94.820, hh:false, pc:false },
+  { name:"Three Oaks Hospice (Kansas City)",              addr:"5901 College Blvd Ste 100",       city:"Overland Park",state:"KS", lat:38.916, lng:-94.688, hh:false, pc:false },
+  { name:"Meadowlark Hospice",                            addr:"709 Kasold Dr",                   city:"Clay Center",  state:"KS", lat:39.378, lng:-97.124, hh:false, pc:false },
+  { name:"Hospice of Salina",                             addr:"331 Limiting Ave",                city:"Salina",       state:"KS", lat:38.840, lng:-97.612, hh:false, pc:false },
+  { name:"Hand in Hand Hospice",                          addr:"1309 West 6th Avenue",            city:"Emporia",      state:"KS", lat:38.406, lng:-96.195, hh:false, pc:false },
+  { name:"Home Health & Hospice of Kansas",               addr:"111 N Hillside St Ste 222",       city:"Wichita",      state:"KS", lat:37.689, lng:-97.314, hh:true,  pc:false },
+  { name:"Clear Path Hospice of Wichita LLC",             addr:"1550 N Waterfront Pkwy Ste 100",  city:"Wichita",      state:"KS", lat:37.758, lng:-97.282, hh:false, pc:false },
+  { name:"RiverCross Hospice LLC",                        addr:"2021 SW Gage Blvd",               city:"Topeka",       state:"KS", lat:39.018, lng:-95.726, hh:false, pc:false },
+  { name:"Catholic Community Hospice",                    addr:"9220 Parallel Pkwy",              city:"Kansas City",  state:"KS", lat:39.121, lng:-94.728, hh:false, pc:false },
+  { name:"Harbor Hospice of Kansas LP",                   addr:"7400 W 132nd St Ste 250",         city:"Overland Park",state:"KS", lat:38.913, lng:-94.718, hh:false, pc:false },
+  { name:"AHC Home Health of Kansas LLC (Hospice)",       addr:"10000 W 75th St Ste 250",         city:"Shawnee",      state:"KS", lat:39.024, lng:-94.741, hh:true,  pc:false },
+  { name:"Kindful Hospice",                               addr:"415 N Emporia Ave Ste 200",       city:"Wichita",      state:"KS", lat:37.691, lng:-97.338, hh:false, pc:false },
+  { name:"Serene Palliative Care & Hospice",              addr:"1935 N Rock Rd Ste 104",          city:"Wichita",      state:"KS", lat:37.736, lng:-97.273, hh:false, pc:true  },
+  { name:"Specialized Home Care & Hospice",               addr:"2601 N Maize Rd Ste 1600",        city:"Wichita",      state:"KS", lat:37.751, lng:-97.444, hh:true,  pc:false },
+  { name:"Progressive Home Health & Hospice",             addr:"700 N Market St Ste 150",         city:"Wichita",      state:"KS", lat:37.692, lng:-97.335, hh:true,  pc:false },
+  { name:"Providence Home Health & Hospice LLC",          addr:"9401 Indian Creek Pkwy Ste 140",  city:"Overland Park",state:"KS", lat:38.908, lng:-94.691, hh:true,  pc:false },
+];
+
+// ── V4 EXACT REGIONS (all 23) ─────────────────────────────────────────────────
+const regions = [
+  { id:"ID-NW", state:"Idaho",        num:1,  name:"ID North Panhandle",                    pop:326000,  elder:64000,  elderPct:19.6, hospices:14, towns:"Coeur d'Alene, Post Falls, Sandpoint, Moscow, Lewiston, Rathdrum, Hayden, Spirit Lake, Bonners Ferry, Orofino, St. Maries, Grangeville, Potlatch, Troy, Genesee, Kamiah" },
+  { id:"ID-SW", state:"Idaho",        num:2,  name:"ID SW — Boise / Treasure Valley",       pop:940000,  elder:134000, elderPct:14.3, hospices:33, towns:"Boise, Nampa, Meridian, Caldwell, Kuna, Eagle, Star, Middleton, Emmett, Payette, Weiser, Mountain Home, Glenns Ferry, Cascade, McCall, Fruitland, New Plymouth, Homedale" },
+  { id:"ID-SE", state:"Idaho",        num:3,  name:"ID SE — Pocatello / Twin Falls / Rexburg", pop:362000, elder:53000, elderPct:14.6, hospices:24, towns:"Pocatello, Idaho Falls, Rexburg, Twin Falls, Blackfoot, American Falls, Burley, Rupert, Jerome, Gooding, Shoshone, Driggs, Montpelier, Preston, Malad City, Soda Springs, Ashton, St. Anthony" },
+  { id:"WY-N",  state:"Wyoming",      num:4,  name:"WY North — Cody / Sheridan / Buffalo",   pop:96000,   elder:19500,  elderPct:20.3, hospices:6,  towns:"Sheridan, Cody, Buffalo, Worland, Greybull, Lovell, Thermopolis, Basin, Ten Sleep, Ranchester, Dayton, Clearmont, Manderson, Powell" },
+  { id:"WY-EC", state:"Wyoming",      num:5,  name:"WY East Central — Casper / Douglas",     pop:105000,  elder:19000,  elderPct:18.1, hospices:8,  towns:"Casper, Douglas, Torrington, Wheatland, Guernsey, Glenrock, Mills, Evansville, Lusk, Newcastle, Sundance, Gillette, Moorcroft, Wright" },
+  { id:"WY-SE", state:"Wyoming",      num:6,  name:"WY SE — Laramie / Rawlins / Cheyenne",   pop:134000,  elder:23500,  elderPct:17.5, hospices:13, towns:"Cheyenne, Laramie, Rawlins, Rock Springs, Evanston, Riverton, Lander, Pine Bluffs, Burns, Chugwater, Medicine Bow, Saratoga, Encampment, Pinedale, Kemmerer, Afton" },
+  { id:"CO-NE", state:"Colorado",     num:7,  name:"CO NE — Ft Collins / Loveland / Greeley", pop:455000, elder:70000,  elderPct:15.4, hospices:9,  towns:"Fort Collins, Loveland, Greeley, Windsor, Johnstown, Berthoud, Timnath, Wellington, Ault, Eaton, Milliken, Evans, Kersey, Severance, La Salle, Platteville, Mead, Frederick, Firestone" },
+  { id:"CO-ND", state:"Colorado",     num:8,  name:"CO N Denver — Boulder / Broomfield",     pop:428000,  elder:62000,  elderPct:14.5, hospices:20, towns:"Boulder, Broomfield, Longmont, Lafayette, Louisville, Superior, Erie, Northglenn, Thornton, Westminster, Brighton, Commerce City, Federal Heights, Henderson, Idaho Springs, Arvada (north)" },
+  { id:"CO-SD", state:"Colorado",     num:9,  name:"CO S Denver — Centennial / Parker / Castle Rock", pop:412000, elder:60000, elderPct:14.6, hospices:10, towns:"Centennial, Parker, Castle Rock, Aurora (south), Englewood, Littleton, Highlands Ranch, Lone Tree, Castle Pines, Elizabeth, Franktown, Limon, Hugo, Kiowa, Strasburg, Bennett, Byers, Calhan" },
+  { id:"CO-S",  state:"Colorado",     num:10, name:"CO Southern — Colo Springs / Pueblo / Trinidad", pop:535000, elder:86000, elderPct:16.1, hospices:11, towns:"Colorado Springs, Pueblo, Cañon City, Florence, Woodland Park, Manitou Springs, Security-Widefield, Fountain, Trinidad, Walsenburg, Cripple Creek, Victor, Salida, La Junta" },
+  { id:"ND-NW", state:"North Dakota", num:11, name:"ND NW — Williston / Minot",              pop:80000,   elder:14000,  elderPct:17.5, hospices:3,  towns:"Williston, Minot, Watford City, Stanley, Crosby, Tioga, Ray, Kenmare, Garrison, Burlington, Velva, Mohall, Bottineau" },
+  { id:"ND-NE", state:"North Dakota", num:12, name:"ND NE — Devils Lake / Grand Forks",      pop:85000,   elder:16500,  elderPct:19.4, hospices:3,  towns:"Grand Forks, Devils Lake, Grafton, Hillsboro, Cavalier, Langdon, Rolla, Dunseith, Rugby, Lakota, Minto, Park River, Pembina" },
+  { id:"ND-C",  state:"North Dakota", num:13, name:"ND Central — Bismarck / Jamestown",      pop:122000,  elder:20500,  elderPct:16.8, hospices:8,  towns:"Bismarck, Mandan, Jamestown, Washburn, Hazen, Beulah, Linton, Napoleon, Carrington, Harvey, Steele, Valley City, Garrison" },
+  { id:"ND-E",  state:"North Dakota", num:14, name:"ND East — Fargo / Valley City",          pop:140000,  elder:20000,  elderPct:14.3, hospices:3,  towns:"Fargo, West Fargo, Wahpeton, Valley City, Lisbon, Oakes, Ellendale, Edgeley, LaMoure, Kindred, Casselton, Mapleton, Harwood" },
+  { id:"ND-S",  state:"North Dakota", num:15, name:"ND South — Dickinson / Stark area",      pop:54000,   elder:10500,  elderPct:19.4, hospices:1,  towns:"Dickinson, New Salem, Glen Ullin, Hebron, New England, Hettinger, Bowman, Reeder, Regent, Killdeer, Manning, Halliday" },
+  { id:"SD-SE", state:"South Dakota", num:16, name:"SD SE — Sioux Falls / Mitchell",         pop:302000,  elder:43000,  elderPct:14.2, hospices:13, towns:"Sioux Falls, Mitchell, Brookings, Madison, Huron, Dell Rapids, Brandon, Hartford, Tea, Harrisburg, Canton, Lennox, Parker, Flandreau, Volga, Arlington, Watertown" },
+  { id:"SD-WC", state:"South Dakota", num:17, name:"SD West Central — Rapid City / Pierre",  pop:202000,  elder:38000,  elderPct:18.8, hospices:4,  towns:"Rapid City, Pierre, Spearfish, Hot Springs, Lead, Deadwood, Sturgis, Box Elder, Belle Fourche, Wall, Philip, Winner, Mobridge, Gettysburg, Aberdeen" },
+  { id:"NE-E",  state:"Nebraska",     num:18, name:"NE East — Omaha / Lincoln / Bellevue",   pop:820000,  elder:118000, elderPct:14.4, hospices:30, towns:"Omaha, Lincoln, Bellevue, Papillion, La Vista, Gretna, Plattsmouth, Nebraska City, Fremont, Blair, Wahoo, Seward, Beatrice, Columbus, Schuyler, Crete, Hebron, Fairbury, Auburn, Falls City, Ashland" },
+  { id:"NE-SC", state:"Nebraska",     num:19, name:"NE South Central — Grand Island / Kearney", pop:175000, elder:31000, elderPct:17.7, hospices:10, towns:"Grand Island, Kearney, Hastings, Lexington, Cozad, Minden, Aurora, Holdrege, McCook, Cambridge, Oxford, Alma, Arapahoe, Red Cloud, Superior, Clay Center, Geneva" },
+  { id:"NE-W",  state:"Nebraska",     num:20, name:"NE West — Scottsbluff / Alliance / Chadron", pop:112000, elder:22000, elderPct:19.6, hospices:6,  towns:"Scottsbluff, Alliance, Chadron, North Platte, Gering, Sidney, Kimball, Bridgeport, Rushville, Gordon, Valentine, O'Neill, Norfolk, Wayne, Ainsworth, Atkinson, Neligh, Pierce, Creighton" },
+  { id:"NM-NC", state:"New Mexico",   num:21, name:"NM East/South (non-ABQ)",                  pop:279000,  elder:48000,  elderPct:17.2, hospices:43, towns:"Santa Fe, Taos, Espanola, Los Alamos, Raton, Springer, Tucumcari, Clovis, Portales, Las Vegas NM, Pecos, Roswell, Carlsbad, Hobbs, Las Cruces, Farmington, Ruidoso, Socorro, Alamogordo, Deming, Silver City, Lordsburg, Truth or Consequences, Elephant Butte" },
+  { id:"NM-RR", state:"New Mexico",   num:22, name:"NM Albuquerque Metro",                     pop:863000,  elder:147000, elderPct:17.0, hospices:27, towns:"Albuquerque, Rio Rancho, Bernalillo, Corrales, Placitas, Cuba, Jemez Springs, Los Lunas, Belen, Bosque Farms, Peralta, Grants, Milan, Laguna Pueblo, Acoma Pueblo, Gallup" },
+  { id:"KS-C",  state:"Kansas",       num:23, name:"KS Central — Wichita Metro",              pop:588000,  elder:94000,  elderPct:16.0, hospices:65, towns:"Wichita, Derby, Haysville, Andover, Newton, Hutchinson, McPherson, Salina, Abilene, Winfield, Arkansas City, Wellington, Pratt, Kingman, Great Bend, Hays, El Dorado, Augusta, Bel Aire, Maize, Valley Center" },
+];
+
+regions.forEach(r => { r.ratio = Math.round(r.pop / r.hospices); });
+const regionById = {};
+regions.forEach(r => regionById[r.id] = r);
+const minR = Math.min(...regions.map(r=>r.ratio));
+const maxR = Math.max(...regions.map(r=>r.ratio));
+const capR = 55000; // cap to prevent outliers distorting the color scale
+
+// ── V4 EXACT COLOR FUNCTION ───────────────────────────────────────────────────
+function ratioColor(ratio) {
+  const t = Math.max(0, Math.min(1, (ratio - minR) / (capR - minR)));
+  const stops = [[0.0,[200,48,22]],[0.22,[222,98,18]],[0.44,[212,172,14]],[0.64,[135,192,32]],[0.82,[42,168,72]],[1.0,[15,118,42]]];
+  let i=0; while (i<stops.length-1 && t>stops[i+1][0]) i++;
+  const [t0,c0]=stops[i],[t1,c1]=stops[Math.min(i+1,stops.length-1)];
+  const f=t1>t0?(t-t0)/(t1-t0):0;
+  return `rgb(${Math.round(c0[0]+f*(c1[0]-c0[0]))},${Math.round(c0[1]+f*(c1[1]-c0[1]))},${Math.round(c0[2]+f*(c1[2]-c0[2]))})`;
+}
+
+function dotColor(hh, pc, unverified) {
+  if (unverified) return '#e8922a';
+  if (hh && pc) return '#28a048';
+  if (hh)       return '#5aa0d0';
+  if (pc)       return '#c8a820';
+  return '#c8d8e8';
+}
+
+const fmt = n => n.toLocaleString();
+const focusStates = new Set(["Idaho","Wyoming","Colorado","North Dakota","South Dakota","Nebraska","New Mexico","Kansas"]);
+const DRILL_STATES = new Set(["Colorado","Nebraska","South Dakota","North Dakota","New Mexico","Idaho","Wyoming","Kansas"]);
+const stateAbbrs = {"Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY"};
+
+// State config for zoom + stats
+const STATE_CFG = {
+  CO: { name:"Northern Colorado", scale:5200, states:["Colorado"],     pad:30, pop:1152904, pct65:14.5, popLabel:"Larimer + Weld + Boulder + Broomfield Counties" },
+  SD: { name:"South Dakota",      scale:4000, states:["South Dakota"], pad:25, pop:924669,  pct65:17.3, popLabel:"Statewide (2024 est.)" },
+  ND: { name:"North Dakota",      scale:4200, states:["North Dakota"], pad:25, pop:796568,  pct65:16.0, popLabel:"Statewide (2024 est.)" },
+  NE: { name:"Nebraska",          scale:4600, states:["Nebraska"],     pad:25, pop:2005465, pct65:16.0, popLabel:"Statewide (2024 est.)" },
+  NM: { name:"New Mexico",        scale:3800, states:["New Mexico"],   pad:25, pop:2114371, pct65:18.2, popLabel:"Statewide (2024 est.)" },
+  ID: { name:"Idaho",             scale:3600, states:["Idaho"],        pad:25, pop:2029733, pct65:16.8, popLabel:"Statewide (2024 est.)" },
+  WY: { name:"Wyoming",           scale:4000, states:["Wyoming"],      pad:25, pop:584057,  pct65:17.5, popLabel:"Statewide (2024 est.)" },
+  KS: { name:"Kansas",            scale:3800, states:["Kansas"],       pad:25, pop:2977220, pct65:16.0, popLabel:"Statewide (2024 est.)" },
+};
+const NE_SUB = {
+  metro:  { pop:1224000, pct65:13.2, label:"Eastern Metro counties", cities:new Set(["Omaha","Lincoln","Bellevue","Fremont","Elkhorn","Wahoo","Crete","Decatur","Columbus","Norfolk","Wayne","Hartington"]) },
+  plains: { pop:285000,  pct65:18.0, label:"Central & Western counties", cities:null }
+};
+function neSubKey(city){ return NE_SUB.metro.cities.has(city) ? 'metro' : 'plains'; }
+
+// V4 EXACT countyMap
+const countyMap = {
+  "Boundary||Idaho":"ID-NW","Bonner||Idaho":"ID-NW","Kootenai||Idaho":"ID-NW","Shoshone||Idaho":"ID-NW","Benewah||Idaho":"ID-NW","Latah||Idaho":"ID-NW","Clearwater||Idaho":"ID-NW","Idaho||Idaho":"ID-NW","Lewis||Idaho":"ID-NW","Nez Perce||Idaho":"ID-NW",
+  "Ada||Idaho":"ID-SW","Canyon||Idaho":"ID-SW","Gem||Idaho":"ID-SW","Elmore||Idaho":"ID-SW","Payette||Idaho":"ID-SW","Owyhee||Idaho":"ID-SW","Washington||Idaho":"ID-SW","Adams||Idaho":"ID-SW","Valley||Idaho":"ID-SW",
+  "Bannock||Idaho":"ID-SE","Bingham||Idaho":"ID-SE","Bonneville||Idaho":"ID-SE","Madison||Idaho":"ID-SE","Jefferson||Idaho":"ID-SE","Teton||Idaho":"ID-SE","Power||Idaho":"ID-SE","Caribou||Idaho":"ID-SE","Bear Lake||Idaho":"ID-SE","Oneida||Idaho":"ID-SE","Franklin||Idaho":"ID-SE","Cassia||Idaho":"ID-SE","Twin Falls||Idaho":"ID-SE","Jerome||Idaho":"ID-SE","Lincoln||Idaho":"ID-SE","Minidoka||Idaho":"ID-SE","Blaine||Idaho":"ID-SE","Camas||Idaho":"ID-SE","Gooding||Idaho":"ID-SE","Clark||Idaho":"ID-SE","Lemhi||Idaho":"ID-SE","Custer||Idaho":"ID-SE","Butte||Idaho":"ID-SE","Fremont||Idaho":"ID-SE",
+  "Park||Wyoming":"WY-N","Washakie||Wyoming":"WY-N","Johnson||Wyoming":"WY-N","Sheridan||Wyoming":"WY-N","Big Horn||Wyoming":"WY-N","Hot Springs||Wyoming":"WY-N",
+  "Natrona||Wyoming":"WY-EC","Converse||Wyoming":"WY-EC","Platte||Wyoming":"WY-EC","Niobrara||Wyoming":"WY-EC","Goshen||Wyoming":"WY-EC","Campbell||Wyoming":"WY-EC","Weston||Wyoming":"WY-EC","Crook||Wyoming":"WY-EC",
+  "Laramie||Wyoming":"WY-SE","Carbon||Wyoming":"WY-SE","Albany||Wyoming":"WY-SE","Sweetwater||Wyoming":"WY-SE","Uinta||Wyoming":"WY-SE","Lincoln||Wyoming":"WY-SE","Sublette||Wyoming":"WY-SE","Fremont||Wyoming":"WY-SE","Teton||Wyoming":"WY-SE",
+  "Larimer||Colorado":"CO-NE","Weld||Colorado":"CO-NE",
+  "Boulder||Colorado":"CO-ND","Broomfield||Colorado":"CO-ND","Adams||Colorado":"CO-ND","Clear Creek||Colorado":"CO-ND","Gilpin||Colorado":"CO-ND",
+  "Arapahoe||Colorado":"CO-SD","Douglas||Colorado":"CO-SD","Elbert||Colorado":"CO-SD","Lincoln||Colorado":"CO-SD","Cheyenne||Colorado":"CO-SD","Kit Carson||Colorado":"CO-SD",
+  "El Paso||Colorado":"CO-S","Pueblo||Colorado":"CO-S","Huerfano||Colorado":"CO-S","Las Animas||Colorado":"CO-S","Custer||Colorado":"CO-S","Fremont||Colorado":"CO-S","Teller||Colorado":"CO-S","Otero||Colorado":"CO-S","Crowley||Colorado":"CO-S","Bent||Colorado":"CO-S","Prowers||Colorado":"CO-S",
+  "Divide||North Dakota":"ND-NW","Williams||North Dakota":"ND-NW","McKenzie||North Dakota":"ND-NW","Mountrail||North Dakota":"ND-NW","Burke||North Dakota":"ND-NW","Ward||North Dakota":"ND-NW","Renville||North Dakota":"ND-NW","Bottineau||North Dakota":"ND-NW","McHenry||North Dakota":"ND-NW","Rolette||North Dakota":"ND-NW",
+  "Ramsey||North Dakota":"ND-NE","Cavalier||North Dakota":"ND-NE","Pembina||North Dakota":"ND-NE","Walsh||North Dakota":"ND-NE","Grand Forks||North Dakota":"ND-NE","Nelson||North Dakota":"ND-NE","Eddy||North Dakota":"ND-NE","Benson||North Dakota":"ND-NE","Towner||North Dakota":"ND-NE","Pierce||North Dakota":"ND-NE",
+  "Burleigh||North Dakota":"ND-C","Morton||North Dakota":"ND-C","McLean||North Dakota":"ND-C","Mercer||North Dakota":"ND-C","Oliver||North Dakota":"ND-C","Sheridan||North Dakota":"ND-C","Wells||North Dakota":"ND-C","Foster||North Dakota":"ND-C","Kidder||North Dakota":"ND-C","Stutsman||North Dakota":"ND-C","Barnes||North Dakota":"ND-C",
+  "Cass||North Dakota":"ND-E","Richland||North Dakota":"ND-E","Ransom||North Dakota":"ND-E","Sargent||North Dakota":"ND-E","La Moure||North Dakota":"ND-E","Logan||North Dakota":"ND-E","McIntosh||North Dakota":"ND-E","Dickey||North Dakota":"ND-E","Steele||North Dakota":"ND-E","Traill||North Dakota":"ND-E",
+  "Grant||North Dakota":"ND-S","Sioux||North Dakota":"ND-S","Emmons||North Dakota":"ND-S","Adams||North Dakota":"ND-S","Slope||North Dakota":"ND-S","Bowman||North Dakota":"ND-S","Hettinger||North Dakota":"ND-S","Stark||North Dakota":"ND-S","Dunn||North Dakota":"ND-S","Billings||North Dakota":"ND-S","Golden Valley||North Dakota":"ND-S",
+  "Minnehaha||South Dakota":"SD-SE","Lincoln||South Dakota":"SD-SE","Turner||South Dakota":"SD-SE","Moody||South Dakota":"SD-SE","Brookings||South Dakota":"SD-SE","Lake||South Dakota":"SD-SE","McCook||South Dakota":"SD-SE","Hanson||South Dakota":"SD-SE","Davison||South Dakota":"SD-SE","Aurora||South Dakota":"SD-SE","Sanborn||South Dakota":"SD-SE","Jerauld||South Dakota":"SD-SE","Beadle||South Dakota":"SD-SE","Kingsbury||South Dakota":"SD-SE","Miner||South Dakota":"SD-SE","Hand||South Dakota":"SD-SE","Spink||South Dakota":"SD-SE","Clark||South Dakota":"SD-SE","Codington||South Dakota":"SD-SE","Deuel||South Dakota":"SD-SE","Hamlin||South Dakota":"SD-SE","Grant||South Dakota":"SD-SE","Roberts||South Dakota":"SD-SE","Day||South Dakota":"SD-SE","Marshall||South Dakota":"SD-SE","Brown||South Dakota":"SD-SE","Faulk||South Dakota":"SD-SE","Potter||South Dakota":"SD-SE","Sully||South Dakota":"SD-SE",
+  "Pennington||South Dakota":"SD-WC","Meade||South Dakota":"SD-WC","Lawrence||South Dakota":"SD-WC","Custer||South Dakota":"SD-WC","Fall River||South Dakota":"SD-WC","Oglala Lakota||South Dakota":"SD-WC","Bennett||South Dakota":"SD-WC","Mellette||South Dakota":"SD-WC","Todd||South Dakota":"SD-WC","Lyman||South Dakota":"SD-WC","Jones||South Dakota":"SD-WC","Haakon||South Dakota":"SD-WC","Stanley||South Dakota":"SD-WC","Ziebach||South Dakota":"SD-WC","Dewey||South Dakota":"SD-WC","Walworth||South Dakota":"SD-WC","Corson||South Dakota":"SD-WC","Campbell||South Dakota":"SD-WC","McPherson||South Dakota":"SD-WC","Edmunds||South Dakota":"SD-WC","Perkins||South Dakota":"SD-WC","Butte||South Dakota":"SD-WC","Harding||South Dakota":"SD-WC","Hughes||South Dakota":"SD-WC","Shannon||South Dakota":"SD-WC",
+  "Douglas||Nebraska":"NE-E","Sarpy||Nebraska":"NE-E","Lancaster||Nebraska":"NE-E","Cass||Nebraska":"NE-E","Washington||Nebraska":"NE-E","Saunders||Nebraska":"NE-E","Dodge||Nebraska":"NE-E","Seward||Nebraska":"NE-E","Butler||Nebraska":"NE-E","Colfax||Nebraska":"NE-E","Platte||Nebraska":"NE-E","Nance||Nebraska":"NE-E","Polk||Nebraska":"NE-E","York||Nebraska":"NE-E","Fillmore||Nebraska":"NE-E","Thayer||Nebraska":"NE-E","Jefferson||Nebraska":"NE-E","Gage||Nebraska":"NE-E","Pawnee||Nebraska":"NE-E","Johnson||Nebraska":"NE-E","Nemaha||Nebraska":"NE-E","Richardson||Nebraska":"NE-E","Otoe||Nebraska":"NE-E","Cuming||Nebraska":"NE-E","Stanton||Nebraska":"NE-E","Madison||Nebraska":"NE-E","Antelope||Nebraska":"NE-E","Pierce||Nebraska":"NE-E","Wayne||Nebraska":"NE-E","Cedar||Nebraska":"NE-E","Dixon||Nebraska":"NE-E","Dakota||Nebraska":"NE-E","Thurston||Nebraska":"NE-E","Burt||Nebraska":"NE-E","Boone||Nebraska":"NE-E","Merrick||Nebraska":"NE-E",
+  "Hall||Nebraska":"NE-SC","Hamilton||Nebraska":"NE-SC","Howard||Nebraska":"NE-SC","Sherman||Nebraska":"NE-SC","Dawson||Nebraska":"NE-SC","Buffalo||Nebraska":"NE-SC","Kearney||Nebraska":"NE-SC","Adams||Nebraska":"NE-SC","Clay||Nebraska":"NE-SC","Nuckolls||Nebraska":"NE-SC","Webster||Nebraska":"NE-SC","Franklin||Nebraska":"NE-SC","Harlan||Nebraska":"NE-SC","Phelps||Nebraska":"NE-SC","Gosper||Nebraska":"NE-SC","Furnas||Nebraska":"NE-SC","Red Willow||Nebraska":"NE-SC","Frontier||Nebraska":"NE-SC","Hitchcock||Nebraska":"NE-SC","Hayes||Nebraska":"NE-SC","Dundy||Nebraska":"NE-SC","Chase||Nebraska":"NE-SC","Perkins||Nebraska":"NE-SC","Garfield||Nebraska":"NE-SC","Loup||Nebraska":"NE-SC","Wheeler||Nebraska":"NE-SC","Blaine||Nebraska":"NE-SC","Valley||Nebraska":"NE-SC","Greeley||Nebraska":"NE-SC",
+  "Scotts Bluff||Nebraska":"NE-W","Dawes||Nebraska":"NE-W","Box Butte||Nebraska":"NE-W","Sioux||Nebraska":"NE-W","Sheridan||Nebraska":"NE-W","Cherry||Nebraska":"NE-W","Brown||Nebraska":"NE-W","Keya Paha||Nebraska":"NE-W","Rock||Nebraska":"NE-W","Holt||Nebraska":"NE-W","Boyd||Nebraska":"NE-W","Knox||Nebraska":"NE-W","Thomas||Nebraska":"NE-W","Logan||Nebraska":"NE-W","McPherson||Nebraska":"NE-W","Grant||Nebraska":"NE-W","Hooker||Nebraska":"NE-W","Arthur||Nebraska":"NE-W","Keith||Nebraska":"NE-W","Deuel||Nebraska":"NE-W","Garden||Nebraska":"NE-W","Morrill||Nebraska":"NE-W","Banner||Nebraska":"NE-W","Kimball||Nebraska":"NE-W","Cheyenne||Nebraska":"NE-W","Lincoln||Nebraska":"NE-W",
+  "Santa Fe||New Mexico":"NM-NC","Taos||New Mexico":"NM-NC","Rio Arriba||New Mexico":"NM-NC","Mora||New Mexico":"NM-NC","Colfax||New Mexico":"NM-NC","Union||New Mexico":"NM-NC","Harding||New Mexico":"NM-NC","San Miguel||New Mexico":"NM-NC","Torrance||New Mexico":"NM-NC","Guadalupe||New Mexico":"NM-NC","Quay||New Mexico":"NM-NC","De Baca||New Mexico":"NM-NC","Curry||New Mexico":"NM-NC","Roosevelt||New Mexico":"NM-NC","Lea||New Mexico":"NM-NC","Chaves||New Mexico":"NM-NC","Eddy||New Mexico":"NM-NC","Lincoln||New Mexico":"NM-NC","Otero||New Mexico":"NM-NC","Socorro||New Mexico":"NM-NC","Sierra||New Mexico":"NM-NC","Catron||New Mexico":"NM-NC","Grant||New Mexico":"NM-NC","Hidalgo||New Mexico":"NM-NC","Luna||New Mexico":"NM-NC","Doña Ana||New Mexico":"NM-NC",
+  "Bernalillo||New Mexico":"NM-RR","Sandoval||New Mexico":"NM-RR","Valencia||New Mexico":"NM-RR","Cibola||New Mexico":"NM-RR","McKinley||New Mexico":"NM-RR",
+  "Sedgwick||Kansas":"KS-C","Harvey||Kansas":"KS-C","Reno||Kansas":"KS-C","McPherson||Kansas":"KS-C","Marion||Kansas":"KS-C","Butler||Kansas":"KS-C","Cowley||Kansas":"KS-C","Sumner||Kansas":"KS-C","Kingman||Kansas":"KS-C","Pratt||Kansas":"KS-C","Stafford||Kansas":"KS-C","Rice||Kansas":"KS-C","Saline||Kansas":"KS-C","Ottawa||Kansas":"KS-C","Dickinson||Kansas":"KS-C","Ellsworth||Kansas":"KS-C","Lincoln||Kansas":"KS-C","Mitchell||Kansas":"KS-C","Republic||Kansas":"KS-C","Cloud||Kansas":"KS-C","Jewell||Kansas":"KS-C","Smith||Kansas":"KS-C","Osborne||Kansas":"KS-C","Russell||Kansas":"KS-C","Ellis||Kansas":"KS-C","Barton||Kansas":"KS-C","Pawnee||Kansas":"KS-C","Edwards||Kansas":"KS-C","Kiowa||Kansas":"KS-C","Clark||Kansas":"KS-C","Ford||Kansas":"KS-C","Meade||Kansas":"KS-C","Seward||Kansas":"KS-C","Comanche||Kansas":"KS-C","Barber||Kansas":"KS-C","Harper||Kansas":"KS-C","Grant||Kansas":"KS-C","Haskell||Kansas":"KS-C","Gray||Kansas":"KS-C","Finney||Kansas":"KS-C","Kearny||Kansas":"KS-C","Hamilton||Kansas":"KS-C","Stanton||Kansas":"KS-C","Morton||Kansas":"KS-C","Stevens||Kansas":"KS-C",
+};
+
+// ── GLOBALS ───────────────────────────────────────────────────────────────────
+let currentState = null, currentNERegion = 'all';
+let stateFeats = null, projBase, pathBase, svg;
+let regionCountyFeats = [], regionCentroidsRaw = {};
+const tip = document.getElementById('tooltip');
+const provTip = document.getElementById('prov-tooltip');
+
+// ── V4 EXACT SIDEBAR BUILD ────────────────────────────────────────────────────
+function buildOverviewSidebar() {
+  document.getElementById('state-stats').style.display = 'none';
+  document.getElementById('sb-title').textContent = 'Focus State Overview';
+  document.getElementById('sb-sub').textContent   = 'State ratios · Region ratios';
+  const ll = document.getElementById('legend-list');
+  ll.innerHTML = '';
+
+  function makeSection(labelText, buildContentFn, defaultOpen) {
+    const wrapper = document.createElement('div');
+
+    const hdr = document.createElement('div');
+    hdr.className = 'sec-header';
+    const lbl = document.createElement('span');
+    lbl.textContent = labelText;
+    const arrow = document.createElement('span');
+    arrow.className = 'sec-arrow' + (defaultOpen ? '' : ' collapsed');
+    arrow.textContent = '▾';
+    hdr.appendChild(lbl);
+    hdr.appendChild(arrow);
+
+    const body = document.createElement('div');
+    body.className = 'sec-body';
+    buildContentFn(body);
+
+    // measure natural height then set max-height for animation
+    body.style.maxHeight = defaultOpen ? '9999px' : '0px';
+
+    hdr.addEventListener('click', () => {
+      const open = body.style.maxHeight !== '0px';
+      body.style.maxHeight = open ? '0px' : '9999px';
+      arrow.classList.toggle('collapsed', !open);
+    });
+
+    wrapper.appendChild(hdr);
+    wrapper.appendChild(body);
+    ll.appendChild(wrapper);
+  }
+
+  // ── SECTION 1: State ratios ───────────────────────────────────────────────
+  const stateRankData = [
+    { abbr:'CO', name:'Colorado (N. only)', pop:1628904, hospices:22 },
+    { abbr:'ID', name:'Idaho',              pop:2029733, hospices:54 },
+    { abbr:'WY', name:'Wyoming',            pop:588753,  hospices:22 },
+    { abbr:'NE', name:'Nebraska',           pop:2018006, hospices:60 },
+    { abbr:'SD', name:'South Dakota',       pop:935094,  hospices:28 },
+    { abbr:'KS', name:'Kansas',             pop:2977220, hospices:83 },
+    { abbr:'NM', name:'New Mexico',         pop:2125498, hospices:53 },
+    { abbr:'ND', name:'North Dakota',       pop:799358,  hospices:12 },
+  ];
+  stateRankData.forEach(s => { s.ratio = Math.round(s.pop / s.hospices); });
+  stateRankData.sort((a,b) => b.ratio - a.ratio);
+
+  makeSection('State — People per Hospice', (body) => {
+    stateRankData.forEach((s,i) => {
+      const row = document.createElement('div');
+      row.className = 'state-rank-row';
+      row.innerHTML = `<span class="sr-num">${i+1}</span>
+        <span class="sr-abbr">${s.abbr}</span>
+        <span class="sr-name">${s.name}</span>
+        <span class="sr-ratio" style="color:${ratioColor(Math.min(maxR,Math.max(minR,s.ratio)))}">${fmt(s.ratio)}</span>`;
+      body.appendChild(row);
+    });
+  }, true);
+
+  // ── SECTION 2: Region ratios ──────────────────────────────────────────────
+  const sorted = [...regions].sort((a,b) => b.ratio - a.ratio);
+
+  makeSection('Region — People per Hospice', (body) => {
+    sorted.forEach((r,i) => {
+      const row = document.createElement('div');
+      row.className = 'legend-row'; row.id = 'leg-' + r.id;
+      row.innerHTML = `<span class="leg-num">${i+1}</span>
+        <span class="leg-swatch" style="background:${ratioColor(r.ratio)}"></span>
+        <div class="leg-info">
+          <div class="leg-name">${r.name}</div>
+          <div class="leg-detail" style="color:${ratioColor(Math.min(maxR,Math.max(minR,r.ratio)))}">${fmt(r.ratio)}:1</div>
+        </div>`;
+      row.addEventListener('mouseenter', () => highlightRegion(r.id));
+      row.addEventListener('mouseleave', clearHighlight);
+      body.appendChild(row);
+    });
+  }, true);
+}
+
+function buildStateSidebar(abbr) {
+  const cfg = STATE_CFG[abbr];
+  document.getElementById('sb-title').textContent = cfg.name + ' — Providers';
+  document.getElementById('sb-sub').textContent   = PROVIDERS.filter(p=>p.state===abbr).length + ' active providers';
+  document.getElementById('state-stats').style.display = 'block';
+  document.getElementById('ss-name').textContent = cfg.name;
+  const neTog = document.getElementById('ne-toggle');
+  if (abbr === 'NE') {
+    neTog.style.display = 'flex';
+    currentNERegion = 'all';
+    document.querySelectorAll('.region-btn').forEach(b => b.classList.toggle('active', b.dataset.region==='all'));
+  } else {
+    neTog.style.display = 'none';
+  }
+  updateStateStats(abbr);
+}
+
+function updateStateStats(abbr) {
+  const cfg = STATE_CFG[abbr];
+  let pop, pct65, popLabel, provs;
+  if (abbr==='NE' && currentNERegion!=='all') {
+    const sub = NE_SUB[currentNERegion];
+    pop=sub.pop; pct65=sub.pct65; popLabel=sub.label;
+    provs = PROVIDERS.filter(p => p.state==='NE' && neSubKey(p.city)===currentNERegion);
+  } else {
+    pop=cfg.pop; pct65=cfg.pct65; popLabel=cfg.popLabel;
+    provs = PROVIDERS.filter(p => p.state===abbr);
+  }
+  document.getElementById('ss-pop').textContent    = fmt(pop);
+  document.getElementById('ss-pop-lbl').textContent = popLabel;
+  document.getElementById('ss-pct65').textContent  = pct65.toFixed(1)+'%  (~'+fmt(Math.round(pop*pct65/100))+')';
+  document.getElementById('ss-count').textContent  = provs.length;
+  const ratio = provs.length ? Math.round(pop / provs.length) : 0;
+  const rv = document.getElementById('ss-ratio');
+  rv.textContent = fmt(ratio);
+  rv.style.color = ratioColor(Math.min(maxR, Math.max(minR, ratio)));
+
+  // Provider list
+  const ll = document.getElementById('legend-list');
+  ll.innerHTML = '';
+  [...provs].sort((a,b)=>a.name.localeCompare(b.name)).forEach(p => {
+    const idx = PROVIDERS.indexOf(p);
+    const col = dotColor(p.hh, p.pc, p.unverified);
+    const row = document.createElement('div');
+    row.className='prov-row'; row.id='prow-'+idx;
+    row.innerHTML=`<div class="prov-dot-sm" style="background:${col}${p.multi?';border:1px dashed rgba(255,255,255,0.4)':''}"></div>
+      <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:2px"><div class="prov-name${p.multi?' multi':''}" style="flex:1;min-width:0">${p.name}</div>${p.unverified?'<span style="font-size:6px;color:#e8922a;background:#2a1800;border:1px solid #e8922a44;border-radius:2px;padding:0 3px;flex-shrink:0">unverified</span>':''}${p.multi?'<span class="prov-multi-badge">multi</span>':''}</div><div class="prov-city">${p.city}</div></div>`;
+    row.addEventListener('mouseenter',()=>{
+      row.classList.add('active');
+      const d=document.getElementById('dot-'+idx);
+      if(d) d3.select(d).select('circle.main').attr('r',9).attr('opacity',0.7);
+    });
+    row.addEventListener('mouseleave',()=>{
+      row.classList.remove('active');
+      const d=document.getElementById('dot-'+idx);
+      const inReg=(currentNERegion==='all')||(abbr!=='NE')||(neSubKey(p.city)===currentNERegion);
+      if(d) d3.select(d).select('circle.main').attr('r',6).attr('opacity',inReg?0.9:0.18);
+    });
+    ll.appendChild(row);
+  });
+
+  // Dim dots not in sub-region
+  d3.selectAll('.provider-dot').each(function(){
+    const idx=parseInt(this.id.replace('dot-',''));
+    const p=PROVIDERS[idx];
+    if(!p) return;
+    const inReg=(currentNERegion==='all')||(abbr!=='NE')||(neSubKey(p.city)===currentNERegion);
+    d3.select(this).select('circle.main').attr('opacity',inReg?0.9:0.18);
+  });
+}
+
+function setNERegion(reg){
+  currentNERegion=reg;
+  document.querySelectorAll('.region-btn').forEach(b=>b.classList.toggle('active',b.dataset.region===reg));
+  updateStateStats('NE');
+}
+
+// ── V4 EXACT HIGHLIGHT ────────────────────────────────────────────────────────
+function highlightRegion(id){
+  d3.selectAll('.region-path').each(function(d){
+    const el=d3.select(this);
+    el.classed('highlighted',d.rid===id).classed('dimmed',d.rid!==id);
+  });
+  document.querySelectorAll('.legend-row').forEach(el=>el.classList.remove('active'));
+  const leg=document.getElementById('leg-'+id);
+  if(leg){leg.classList.add('active');leg.scrollIntoView({block:'nearest',behavior:'smooth'});}
+}
+function clearHighlight(){
+  if(currentState) return;
+  d3.selectAll('.region-path').classed('dimmed',false).classed('highlighted',false);
+  document.querySelectorAll('.legend-row').forEach(el=>el.classList.remove('active'));
+  tip.style.display='none';
+}
+
+// ── SCALE BAR (v4 exact) ─────────────────────────────────────────────────────
+const sr=document.getElementById('scale-row');
+for(let i=0;i<24;i++){
+  const v=minR+(i/23)*(capR-minR);
+  const seg=document.createElement('div');seg.className='sc-seg';
+  seg.style.background=ratioColor(v);sr.appendChild(seg);
+}
+
+// ── D3 MAIN ───────────────────────────────────────────────────────────────────
+d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json').then(us=>{
+  projBase=d3.geoAlbersUsa().scale(1060).translate([480,290]);
+  pathBase=d3.geoPath().projection(projBase);
+  stateFeats=topojson.feature(us,us.objects.states).features;
+  const countyFeats=topojson.feature(us,us.objects.counties).features;
+  svg=d3.select('#map');
+
+  const stateById2={};
+  stateFeats.forEach(f=>stateById2[String(f.id).padStart(2,'0')]=f.properties.name);
+
+  // Background (v4)
+  svg.append('g').selectAll('path').data(stateFeats).join('path')
+    .attr('class','bg-state').attr('d',pathBase);
+
+  // County regions (v4 exact)
+  const regG=svg.append('g').attr('id','reg-group');
+  const rnumG=svg.append('g').attr('id','rnum-group');
+  const centroids={};
+
+  countyFeats.forEach(f=>{
+    const fips=String(f.id).padStart(5,'0');
+    const sName=stateById2[fips.slice(0,2)];
+    const cName=(f.properties.name||'').replace(/ County$/,'').replace(/ Parish$/,'').replace(/ Borough$/,'').replace(/ Census Area$/,'').replace(/ City and Borough$/,'').replace(/ Municipality$/,'');
+    const rid=countyMap[cName+'||'+sName];
+    if(!rid) return;
+    const r=regionById[rid];
+    if(!r) return;
+
+    regG.append('path').datum({rid})
+      .attr('class','region-path')
+      .attr('d',pathBase(f))
+      .attr('fill',ratioColor(r.ratio))
+      .on('mousemove',function(event){
+        if(currentState) return;
+        tip.style.display='block';
+        tip.style.left=Math.min(event.clientX+16,window.innerWidth-255)+'px';
+        tip.style.top=Math.max(event.clientY-115,8)+'px';
+        document.getElementById('tt-name').textContent=r.name;
+        document.getElementById('tt-state').textContent=r.state;
+        document.getElementById('tt-num').textContent='Region #'+r.num;
+        document.getElementById('tt-pop').textContent=fmt(r.pop);
+        document.getElementById('tt-elder').textContent=fmt(r.elder);
+        document.getElementById('tt-pct').textContent=r.elderPct+'%';
+        document.getElementById('tt-hosp').textContent='~'+r.hospices+' providers';
+        const rv=document.getElementById('tt-ratio');
+        rv.textContent=fmt(r.ratio)+' people per provider';
+        rv.style.color=ratioColor(r.ratio);
+        document.getElementById('tt-towns').textContent='📍 '+r.towns;
+        highlightRegion(rid);
+      })
+      .on('mouseleave',clearHighlight);
+
+    if(!centroids[rid]) centroids[rid]=[];
+    const c=pathBase.centroid(f);
+    if(!isNaN(c[0])) centroids[rid].push(c);
+    regionCountyFeats.push({feature:f,rid});
+    if(!regionCentroidsRaw[rid]) regionCentroidsRaw[rid]=[];
+    regionCentroidsRaw[rid].push(f);
+  });
+
+  // Number badges (v4 exact)
+  Object.entries(centroids).forEach(([rid,pts])=>{
+    if(!pts.length) return;
+    const r=regionById[rid];
+    const cx=pts.reduce((s,c)=>s+c[0],0)/pts.length;
+    const cy=pts.reduce((s,c)=>s+c[1],0)/pts.length;
+    rnumG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9.5)
+      .attr('fill','rgba(15,25,35,0.78)').attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',0.8).attr('pointer-events','none');
+    rnumG.append('text').attr('x',cx).attr('y',cy).attr('class','rnum-txt').text(r?r.num:'');
+  });
+
+  // Focus outlines (v4)
+  svg.append('g').selectAll('path')
+    .data(stateFeats.filter(f=>focusStates.has(f.properties.name)))
+    .join('path').attr('class','focus-outline').attr('d',pathBase);
+
+  // Invisible click targets for 4 drill states
+  svg.append('g').attr('id','drill-states').selectAll('path')
+    .data(stateFeats.filter(f=>DRILL_STATES.has(f.properties.name)))
+    .join('path').attr('class','focus-state').attr('d',pathBase)
+    .on('click',(event,d)=>{
+      const abbr=stateAbbrs[d.properties.name];
+      if(abbr && !currentState) zoomTo(abbr);
+    });
+
+  // State labels (v4 exact)
+  svg.append('g').selectAll('text').data(stateFeats).join('text')
+    .attr('class','state-label')
+    .attr('x',d=>pathBase.centroid(d)[0])
+    .attr('y',d=>pathBase.centroid(d)[1])
+    .text(d=>stateAbbrs[d.properties.name]||'');
+
+  svg.append('g').attr('id','dot-layer');
+  svg.append('g').attr('id','sw-layer');
+  drawStillwaterStars(projBase);
+  buildOverviewSidebar();
+});
+
+// ── STILLWATER LOCATIONS ──────────────────────────────────────────────────────
+const SW_LOCATIONS = [
+  { id:'billings',   name:'Stillwater — Billings',    state:'MT', addr:'3737 Grand Ave, Suite 1',          city:'Billings',   lat:45.783, lng:-108.500 },
+  { id:'bozeman',    name:'Stillwater — Bozeman',     state:'MT', addr:'265 Timberline Dr',                city:'Bozeman',    lat:45.679, lng:-111.042 },
+  { id:'butte',      name:'Stillwater — Butte',       state:'MT', addr:'3475 Monroe Ave #100',             city:'Butte',      lat:46.003, lng:-112.535 },
+  { id:'greatfalls', name:'Stillwater — Great Falls', state:'MT', addr:'600 6th St NW #5',                 city:'Great Falls',lat:47.500, lng:-111.300 },
+  { id:'helena',     name:'Stillwater — Helena',      state:'MT', addr:'2030 11th Ave',                    city:'Helena',     lat:46.596, lng:-112.027 },
+  { id:'kalispell',  name:'Stillwater — Kalispell',   state:'MT', addr:'1830 3rd Ave East, Suite 302',     city:'Kalispell',  lat:48.196, lng:-114.312 },
+  { id:'missoula',   name:'Stillwater — Missoula',    state:'MT', addr:'700 SW Higgins Ave, Suite 102',    city:'Missoula',   lat:46.872, lng:-114.016 },
+  { id:'powell',     name:'Stillwater — Powell',      state:'WY', addr:'210 N Bent Street',                city:'Powell',     lat:44.754, lng:-108.757 },
+  { id:'gillette',   name:'Stillwater — Gillette',    state:'WY', addr:'300 S Burma Ave',                  city:'Gillette',   lat:44.291, lng:-105.502 },
+  { id:'rapidcity',  name:'Stillwater — Rapid City',  state:'SD', addr:'3117 W Rapid St #5',               city:'Rapid City', lat:44.080, lng:-103.231 },
+];
+
+// Star path: 5-point star centered at 0,0
+function starPath(r) {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = (i * Math.PI / 5) - Math.PI / 2;
+    const rad = i % 2 === 0 ? r : r * 0.42;
+    pts.push([Math.cos(angle) * rad, Math.sin(angle) * rad]);
+  }
+  return 'M' + pts.map(p => p.join(',')).join('L') + 'Z';
+}
+
+function drawStillwaterStars(proj) {
+  svg.select('#sw-layer').selectAll('*').remove();
+  SW_LOCATIONS.forEach(loc => {
+    const xy = proj([loc.lng, loc.lat]);
+    if (!xy || isNaN(xy[0])) return;
+    const g = svg.select('#sw-layer').append('g')
+      .attr('class', 'sw-star')
+      .attr('transform', `translate(${xy[0]},${xy[1]})`);
+    // Shadow
+    g.append('path').attr('d', starPath(9)).attr('fill','rgba(0,0,0,0.4)').attr('transform','translate(1,1.5)').attr('pointer-events','none');
+    // Star fill
+    g.append('path').attr('d', starPath(8)).attr('fill','#f0d060').attr('stroke','#1a5a6e').attr('stroke-width',1.2).attr('class','sw-main');
+    // Tooltip
+    g.on('mousemove', function(event) {
+      provTip.style.display = 'block';
+      provTip.style.left = Math.min(event.clientX+16, window.innerWidth-270)+'px';
+      provTip.style.top = Math.max(event.clientY-80, 8)+'px';
+      document.getElementById('pt-name').textContent = loc.name + ' ★ Stillwater locations';
+      document.getElementById('pt-addr').textContent = loc.addr;
+      document.getElementById('pt-city').textContent = loc.city + ', ' + loc.state;
+    }).on('mouseleave', () => { provTip.style.display = 'none'; });
+  });
+}
+
+function redrawStillwaterStars(proj) {
+  svg.select('#sw-layer').selectAll('.sw-star')
+    .attr('transform', d => {
+      // re-project using stored data — rebuild instead
+    });
+  drawStillwaterStars(proj);
+}
+function zoomTo(abbr){
+  currentState=abbr; currentNERegion='all';
+  document.getElementById('state-prompt').style.opacity='0';
+  document.getElementById('back-btn').style.display='flex';
+  document.getElementById('state-title').textContent='· '+STATE_CFG[abbr].name;
+
+  const cfg=STATE_CFG[abbr];
+  const proj=d3.geoAlbersUsa().scale(cfg.scale).translate([480,290]);
+  const path=d3.geoPath().projection(proj);
+  const feats=stateFeats.filter(f=>cfg.states.includes(f.properties.name));
+  const [[x0,y0],[x1,y1]]=path.bounds({type:'FeatureCollection',features:feats});
+  const pad=cfg.pad;
+  svg.transition().duration(700).attr('viewBox',`${x0-pad} ${y0-pad} ${x1-x0+pad*2} ${y1-y0+pad*2}`);
+
+  // Redraw region counties with new projection, dim to 50%
+  svg.select('#reg-group').selectAll('path').data(regionCountyFeats)
+    .transition().duration(700).attr('d',d=>path(d.feature));
+  svg.select('#reg-group').style('pointer-events','none')
+    .transition().duration(400).style('opacity',0.5);
+
+  // Redraw badges
+  const rnumG=svg.select('#rnum-group');
+  rnumG.selectAll('*').remove();
+  Object.entries(regionCentroidsRaw).forEach(([rid,feats])=>{
+    const r=regionById[rid];
+    const pts=feats.map(f=>path.centroid(f)).filter(c=>!isNaN(c[0]));
+    if(!pts.length) return;
+    const cx=pts.reduce((s,c)=>s+c[0],0)/pts.length;
+    const cy=pts.reduce((s,c)=>s+c[1],0)/pts.length;
+    rnumG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9.5)
+      .attr('fill','rgba(15,25,35,0.78)').attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',0.8).attr('pointer-events','none');
+    rnumG.append('text').attr('x',cx).attr('y',cy).attr('class','rnum-txt').text(r?r.num:'');
+  });
+
+  // Redraw all state geometry
+  svg.selectAll('.bg-state').transition().duration(700).attr('d',path);
+  svg.selectAll('.focus-outline').transition().duration(700).attr('d',path);
+  svg.select('#drill-states').selectAll('path').transition().duration(700).attr('d',path);
+  svg.selectAll('.state-label').transition().duration(700)
+    .attr('x',d=>{const c=path.centroid(d);return isNaN(c[0])?0:c[0];})
+    .attr('y',d=>{const c=path.centroid(d);return isNaN(c[1])?0:c[1];});
+
+  setTimeout(()=>{ drawDots(abbr,proj); drawStillwaterStars(proj); },720);
+  buildStateSidebar(abbr);
+  document.getElementById('dot-legend').style.display='block';
+}
+
+// ── DOTS ─────────────────────────────────────────────────────────────────────
+function drawDots(abbr,proj){
+  svg.select('#dot-layer').selectAll('*').remove();
+  PROVIDERS.filter(p=>p.state===abbr).forEach(p=>{
+    const xy=proj([p.lng,p.lat]);
+    if(!xy||isNaN(xy[0])) return;
+    const idx=PROVIDERS.indexOf(p);
+    const col=dotColor(p.hh,p.pc,p.unverified);
+    const g=svg.select('#dot-layer').append('g')
+      .attr('class','provider-dot').attr('id','dot-'+idx)
+      .attr('transform',`translate(${xy[0]},${xy[1]})`);
+    g.append('circle').attr('r',7).attr('fill','rgba(0,0,0,0.38)').attr('transform','translate(1,1.5)');
+    g.append('circle').attr('r',6).attr('class','main').attr('fill',col).attr('opacity',0.9);
+    if(p.multi){
+      g.append('circle').attr('r',8.5).attr('fill','none').attr('stroke','rgba(255,255,255,0.35)').attr('stroke-width',1).attr('stroke-dasharray','2,2').attr('pointer-events','none');
+    }
+    g.append('circle').attr('r',2).attr('fill','rgba(255,255,255,0.22)').attr('transform','translate(-1.5,-1.5)').attr('pointer-events','none');
+    g.on('mousemove',function(event){
+      provTip.style.display='block';
+      provTip.style.left=Math.min(event.clientX+16,window.innerWidth-270)+'px';
+      provTip.style.top=Math.max(event.clientY-80,8)+'px';
+      document.getElementById('pt-name').textContent=p.name+(p.multi?' ↔ multi-location':'')+(p.unverified?' ⚠ unverified':'');
+      document.getElementById('pt-addr').textContent=p.addr;
+      document.getElementById('pt-city').textContent=p.city+', '+p.state;
+      document.querySelectorAll('.prov-row').forEach(el=>el.classList.remove('active'));
+      const row=document.getElementById('prow-'+idx);
+      if(row){row.classList.add('active');row.scrollIntoView({block:'nearest',behavior:'smooth'});}
+    }).on('mouseleave',()=>{
+      provTip.style.display='none';
+      document.querySelectorAll('.prov-row').forEach(el=>el.classList.remove('active'));
+    });
+  });
+}
+
+// ── GO BACK ───────────────────────────────────────────────────────────────────
+function goBack(){
+  currentState=null;
+  tip.style.display='none'; provTip.style.display='none';
+  document.getElementById('state-prompt').style.opacity='1';
+  document.getElementById('back-btn').style.display='none';
+  document.getElementById('state-title').textContent='';
+  svg.transition().duration(600).attr('viewBox','0 0 960 580');
+
+  svg.select('#reg-group').selectAll('path').data(regionCountyFeats)
+    .transition().duration(600).attr('d',d=>pathBase(d.feature));
+  svg.select('#reg-group').style('pointer-events','auto')
+    .transition().duration(600).style('opacity',1);
+
+  const rnumG=svg.select('#rnum-group');
+  rnumG.selectAll('*').remove();
+  Object.entries(regionCentroidsRaw).forEach(([rid,feats])=>{
+    const r=regionById[rid];
+    const pts=feats.map(f=>pathBase.centroid(f)).filter(c=>!isNaN(c[0]));
+    if(!pts.length) return;
+    const cx=pts.reduce((s,c)=>s+c[0],0)/pts.length;
+    const cy=pts.reduce((s,c)=>s+c[1],0)/pts.length;
+    rnumG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9.5)
+      .attr('fill','rgba(15,25,35,0.78)').attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',0.8).attr('pointer-events','none');
+    rnumG.append('text').attr('x',cx).attr('y',cy).attr('class','rnum-txt').text(r?r.num:'');
+  });
+
+  svg.selectAll('.bg-state').transition().duration(600).attr('d',pathBase);
+  svg.selectAll('.focus-outline').transition().duration(600).attr('d',pathBase);
+  svg.select('#drill-states').selectAll('path').transition().duration(600).attr('d',pathBase);
+  svg.selectAll('.state-label').transition().duration(600)
+    .attr('x',d=>{const c=pathBase.centroid(d);return isNaN(c[0])?0:c[0];})
+    .attr('y',d=>{const c=pathBase.centroid(d);return isNaN(c[1])?0:c[1];});
+
+  svg.select('#dot-layer').selectAll('*').remove();
+  drawStillwaterStars(projBase);
+  buildOverviewSidebar();
+  // dot-legend stays visible
+}
+</script>
+</body>
+</html>
